@@ -6,7 +6,7 @@ import os
 import config
 import index_core.log as log
 from index_core.async_upload import async_check_existing_and_upload_to_s3
-from index_core.aws import check_existing_and_upload_to_s3
+from index_core.universe_media import upload_universe_media
 
 logger = logging.getLogger(__name__)
 log.set_logger(logger)  # set root logger
@@ -42,22 +42,19 @@ def get_fileobj_and_md5(decoded_base64):
 
 
 def store_files(db, filename, decoded_base64, mime_type):
-    """Store files in either AWS S3 or disk storage, unless disabled."""
+    """Store exact Stamp bytes in the single shared Universe media service."""
     if not config.STORE_FILES:
         logger.debug("File storage is disabled, skipping storage operations")
         file_obj, file_obj_md5 = get_fileobj_and_md5(decoded_base64)
         return file_obj_md5, filename
 
     file_obj, file_obj_md5 = get_fileobj_and_md5(decoded_base64)
-    if config.AWS_S3_ENABLED:
-        if config.USE_ASYNC_UPLOADS:
-            # Use the asynchronous version for non-blocking uploads
-            async_check_existing_and_upload_to_s3(filename, mime_type, file_obj, file_obj_md5)
-        else:
-            # Use the original synchronous version
-            check_existing_and_upload_to_s3(db, filename, mime_type, file_obj, file_obj_md5)
+    if not config.UNIVERSE_MEDIA_ENABLED:
+        raise RuntimeError("STORE_FILES requires the shared Universe media service")
+    if config.USE_ASYNC_UPLOADS:
+        async_check_existing_and_upload_to_s3(filename, mime_type, file_obj, file_obj_md5)
     else:
-        store_files_to_disk(filename, decoded_base64)
+        upload_universe_media(filename, mime_type, file_obj)
     return file_obj_md5, filename
 
 

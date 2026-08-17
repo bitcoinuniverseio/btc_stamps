@@ -58,6 +58,8 @@ def mock_config():
         mock_cfg.APP_NAME = "bitcoin-stamps"
         mock_cfg.USE_ASYNC_UPLOADS = False
         mock_cfg.STORE_FILES = False
+        mock_cfg.UNIVERSE_MEDIA_ENABLED = False
+        mock_cfg.ENABLE_SRC20_BACKGROUND_VALIDATION = False
         mock_cfg.AWS_SECRET_ACCESS_KEY = None
         mock_cfg.AWS_ACCESS_KEY_ID = None
         mock_cfg.AWS_S3_BUCKETNAME = None
@@ -448,14 +450,12 @@ class TestStartAll:
                 mock_blocks.follow.assert_called_once_with(mock_db)
                 assert shutdown_flag.is_set()
 
-    def test_start_all_with_s3(self, mock_config, mock_backend, mock_logger):
-        """Test start_all with S3 configuration."""
+    def test_start_all_with_universe_media(self, mock_config, mock_backend, mock_logger):
+        """Test start_all with central durable media ingestion."""
         from index_core.server import shutdown_flag, start_all
 
         mock_config.STORE_FILES = True
-        mock_config.AWS_SECRET_ACCESS_KEY = "secret"
-        mock_config.AWS_ACCESS_KEY_ID = "access"
-        mock_config.AWS_S3_BUCKETNAME = "test-bucket"
+        mock_config.UNIVERSE_MEDIA_ENABLED = True
         mock_config.USE_ASYNC_UPLOADS = True
 
         mock_db = mock.MagicMock()
@@ -463,18 +463,16 @@ class TestStartAll:
 
         with mock.patch("index_core.server.concurrent.futures.ThreadPoolExecutor"):
             with mock.patch("index_core.server.blocks"):
-                with mock.patch("index_core.server.get_s3_objects") as mock_s3:
-                    with mock.patch("index_core.server.start_upload_worker") as mock_start_worker:
-                        with mock.patch("index_core.server.wait_for_uploads") as mock_wait:
-                            with mock.patch("index_core.server.stop_upload_worker") as mock_stop:
-                                mock_wait.return_value = True
+                with mock.patch("index_core.server.start_upload_worker") as mock_start_worker:
+                    with mock.patch("index_core.server.wait_for_uploads") as mock_wait:
+                        with mock.patch("index_core.server.stop_upload_worker") as mock_stop:
+                            mock_wait.return_value = True
 
-                                start_all(mock_db)
+                            start_all(mock_db)
 
-                                mock_s3.assert_called_once()
-                                mock_start_worker.assert_called_once()
-                                mock_wait.assert_called_once()
-                                mock_stop.assert_called_once()
+                            mock_start_worker.assert_called_once()
+                            mock_wait.assert_called_once()
+                            mock_stop.assert_called_once()
 
     def test_start_all_with_exception(self, mock_config, mock_backend, mock_logger):
         """Test start_all with exception handling."""

@@ -11,6 +11,10 @@ import pytest
 os.environ["TESTING"] = "1"
 os.environ["USE_TEST_DB"] = "1"
 os.environ["MOCK_DB"] = "1"
+# Unit tests must not inherit the production default that persists media. Tests
+# covering the shared media path enable STORE_FILES explicitly and mock the
+# central ingest service; unrelated parser tests must remain side-effect free.
+os.environ["STORE_FILES"] = "false"
 # Disable sales history catchup during tests to prevent background API calls
 os.environ["ENABLE_SALES_HISTORY_CATCHUP"] = "false"
 

@@ -57,22 +57,16 @@ class TestFiles(unittest.TestCase):
         self.assertEqual(returned_filename, filename)
 
     @mock.patch("index_core.files.config.STORE_FILES", True)
-    @mock.patch("index_core.files.config.AWS_SECRET_ACCESS_KEY", None)
+    @mock.patch("index_core.files.config.UNIVERSE_MEDIA_ENABLED", False)
     @mock.patch("index_core.files.store_files_to_disk")
-    def test_store_files_disk_storage(self, mock_store_disk):
-        """Test store_files falls back to disk storage when AWS not configured."""
+    def test_store_files_fails_closed_without_universe_media(self, mock_store_disk):
+        """Enabled storage must never split into a local or legacy backend."""
         test_data = b"Test data"
         filename = "test.txt"
 
-        md5_hash, returned_filename = store_files(None, filename, test_data, "text/plain")
-
-        # Should call disk storage
-        mock_store_disk.assert_called_once_with(filename, test_data)
-
-        # Should return MD5 and filename
-        expected_md5 = hashlib.md5(test_data, usedforsecurity=False).hexdigest()
-        self.assertEqual(md5_hash, expected_md5)
-        self.assertEqual(returned_filename, filename)
+        with self.assertRaisesRegex(RuntimeError, "shared Universe media"):
+            store_files(None, filename, test_data, "text/plain")
+        mock_store_disk.assert_not_called()
 
     def test_store_files_to_disk_valid(self):
         """Test store_files_to_disk with valid input."""
@@ -111,15 +105,11 @@ class TestFiles(unittest.TestCase):
             self.assertEqual(str(context.exception), "Disk full")
 
     @mock.patch("index_core.files.config.STORE_FILES", True)
-    @mock.patch("index_core.files.config.AWS_S3_ENABLED", True)
-    @mock.patch("index_core.files.config.AWS_SECRET_ACCESS_KEY", "secret")
-    @mock.patch("index_core.files.config.AWS_ACCESS_KEY_ID", "key")
-    @mock.patch("index_core.files.config.AWS_S3_BUCKETNAME", "bucket")
-    @mock.patch("index_core.files.config.AWS_S3_IMAGE_DIR", "images")
+    @mock.patch("index_core.files.config.UNIVERSE_MEDIA_ENABLED", True)
     @mock.patch("index_core.files.config.USE_ASYNC_UPLOADS", True)
     @mock.patch("index_core.files.async_check_existing_and_upload_to_s3")
-    def test_store_files_async_aws(self, mock_async_upload):
-        """Test store_files with async AWS upload."""
+    def test_store_files_async_universe_media(self, mock_async_upload):
+        """Test durable asynchronous central-media ingestion."""
         test_data = b"Test data"
         filename = "test.txt"
 
@@ -136,15 +126,11 @@ class TestFiles(unittest.TestCase):
         self.assertEqual(call_args[3], md5_hash)
 
     @mock.patch("index_core.files.config.STORE_FILES", True)
-    @mock.patch("index_core.files.config.AWS_S3_ENABLED", True)
-    @mock.patch("index_core.files.config.AWS_SECRET_ACCESS_KEY", "secret")
-    @mock.patch("index_core.files.config.AWS_ACCESS_KEY_ID", "key")
-    @mock.patch("index_core.files.config.AWS_S3_BUCKETNAME", "bucket")
-    @mock.patch("index_core.files.config.AWS_S3_IMAGE_DIR", "images")
+    @mock.patch("index_core.files.config.UNIVERSE_MEDIA_ENABLED", True)
     @mock.patch("index_core.files.config.USE_ASYNC_UPLOADS", False)
-    @mock.patch("index_core.files.check_existing_and_upload_to_s3")
-    def test_store_files_sync_aws(self, mock_sync_upload):
-        """Test store_files with synchronous AWS upload."""
+    @mock.patch("index_core.files.upload_universe_media")
+    def test_store_files_sync_universe_media(self, mock_sync_upload):
+        """Test synchronous central-media ingestion."""
         test_data = b"Test data"
         filename = "test.txt"
 
@@ -155,11 +141,9 @@ class TestFiles(unittest.TestCase):
 
         # Check call arguments
         call_args = mock_sync_upload.call_args[0]
-        self.assertIsNone(call_args[0])  # db
-        self.assertEqual(call_args[1], filename)
-        self.assertEqual(call_args[2], "text/plain")
-        self.assertIsInstance(call_args[3], io.BytesIO)
-        self.assertEqual(call_args[4], md5_hash)
+        self.assertEqual(call_args[0], filename)
+        self.assertEqual(call_args[1], "text/plain")
+        self.assertIsInstance(call_args[2], io.BytesIO)
 
     def test_store_files_to_disk_with_existing_directory(self):
         """Test store_files_to_disk when files directory already exists."""
