@@ -18,7 +18,6 @@ import index_core.blocks as blocks
 import index_core.log as log
 from exceptions import ConfigurationError
 from index_core.async_upload import start_upload_worker, stop_upload_worker, wait_for_uploads
-from index_core.aws import get_s3_objects
 from index_core.backend import Backend
 from index_core.check import cp_version, software_version
 from index_core.critical_failure_handler import emergency_db_rollback, register_cleanup_callback, set_db_connection
@@ -343,13 +342,11 @@ def start_all(db: Connection) -> None:
         # Backend
         connect_to_backend()  # This sets the global backend_instance
         if config.STORE_FILES:
-            if config.AWS_S3_ENABLED:
-                config.S3_OBJECTS = get_s3_objects(db, config.AWS_S3_BUCKETNAME, config.AWS_S3_CLIENT)
-
-                # Start the async upload worker if async uploads are enabled
-                if config.USE_ASYNC_UPLOADS:
-                    logger.info("Starting async upload worker...")
-                    start_upload_worker()
+            if not config.UNIVERSE_MEDIA_ENABLED:
+                raise ConfigurationError("STORE_FILES requires the shared Universe media service")
+            if config.USE_ASYNC_UPLOADS:
+                logger.info("Starting durable Universe media upload worker...")
+                start_upload_worker()
 
         # TEMPORARILY DISABLED: Async holder updater causing lock timeouts
         # TODO: Re-enable after optimizing queries to work with smaller batches

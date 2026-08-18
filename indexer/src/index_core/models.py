@@ -11,6 +11,7 @@ from typing import ClassVar, Dict, List, Optional, Tuple, TypedDict, Union
 import msgpack
 import regex as re
 
+import config
 import index_core.log as log
 from config import (
     BTC_SRC101_GENESIS_BLOCK,
@@ -128,6 +129,7 @@ class StampData:
     db: Optional[object] = None
     _lock: Optional[threading.Lock] = None
     _cp_issuer: Optional[str] = None
+    _canonical_media_bytes: Optional[bytes] = None
 
     @staticmethod
     def check_custom_suffix(bytestring_data):
@@ -588,10 +590,21 @@ class StampData:
             self.stamp_mimetype,
             self.is_valid_base64,
         ) = get_data_func(stamp, self.block_index)
+        # Classification may normalize JSON, strip whitespace, or decompress a
+        # gzip-wrapped SVG. Preserve the exact post-base64 bytes before any of
+        # those display-oriented transformations run.
+        if isinstance(self.decoded_base64, bytes):
+            self._canonical_media_bytes = bytes(self.decoded_base64)
+        elif isinstance(self.decoded_base64, str):
+            self._canonical_media_bytes = self.decoded_base64.encode("utf-8")
 
     def process_p2wsh_data(self, decode_base64_func):
         self.stamp_base64 = base64.b64encode(self.p2wsh_data).decode()
         self.decoded_base64, self.is_valid_base64 = decode_base64_func(self.stamp_base64, self.block_index)
+        if isinstance(self.decoded_base64, bytes):
+            self._canonical_media_bytes = bytes(self.decoded_base64)
+        elif isinstance(self.decoded_base64, str):
+            self._canonical_media_bytes = self.decoded_base64.encode("utf-8")
         self.check_decoded_data_fetch_ident_mime()
         self.is_op_return = None  # reset because p2wsh are typically op_return
 
@@ -620,9 +633,14 @@ class StampData:
 
     def update_cpid_and_stamp_url(self, filename):
         self.cpid = self.cpid if self.cpid else self.stamp_hash
-        self.stamp_url = (
-            "https://" + DOMAINNAME + "/stamps/" + filename if self.file_suffix is not None and filename is not None else None
-        )
+        if self.file_suffix is None or filename is None:
+            self.stamp_url = None
+        elif config.UNIVERSE_MEDIA_ENABLED:
+            from index_core.universe_media import public_universe_media_url
+
+            self.stamp_url = public_universe_media_url(filename)
+        else:
+            self.stamp_url = "https://" + DOMAINNAME + "/stamps/" + filename
 
     def determine_stamp_data_type(self, decode_base64_func):
         if self.p2wsh_data is not None and self.block_index >= CP_P2WSH_FEAT_BLOCK_START:
@@ -794,8 +812,17 @@ class StampData:
 
         self.normalize_mime_and_suffix()
 
-        # Dual processing for cursed stamps: Try enhanced detection for better display
-        # This happens AFTER stamp classification, so it's consensus-safe
+        # Preserve the exact post-base64 blockchain bytes as the canonical
+        # object. Enhanced/decompressed content is a display derivative owned
+        # by the central media service; it must never replace the original.
+        storage_content = self._canonical_media_bytes if self._canonical_media_bytes is not None else self.decoded_base64
+        storage_suffix = self.file_suffix
+        storage_mimetype = self.stamp_mimetype
+        if isinstance(storage_content, bytes) and storage_content.startswith(b"\x1f\x8b"):
+            storage_mimetype = "application/gzip"
+
+        # Detect enhanced display metadata without mutating canonical bytes.
+        # This happens AFTER stamp classification, so it is consensus-safe.
         if self.is_cursed and hasattr(self, "_consensus_file_suffix"):
             # Only try enhanced detection if we had a potentially compressed file
             if self._consensus_mimetype in [
@@ -816,27 +843,14 @@ class StampData:
 
                 # If we got better content (e.g., decompressed SVG), use it for display
                 if enhanced_mime == "image/svg+xml" and enhanced_content != self.decoded_base64:
-                    self.decoded_base64 = enhanced_content
                     self.actual_mimetype = enhanced_mime
-                    # For storage, use the enhanced version for better display
-                    storage_suffix = "svg"
-                    storage_mimetype = enhanced_mime
-                else:
-                    storage_suffix = self.file_suffix
-                    storage_mimetype = self.stamp_mimetype
-            else:
-                storage_suffix = self.file_suffix
-                storage_mimetype = self.stamp_mimetype
-        else:
-            storage_suffix = self.file_suffix
-            storage_mimetype = self.stamp_mimetype
 
         # 'encode_and_store_file' can handle different types (bytestring, string, or dict)
         self.file_hash, filename, self.file_size_bytes = encode_and_store_file(
             db,
             self.tx_hash,
             storage_suffix,
-            self.decoded_base64,
+            storage_content,
             storage_mimetype,
         )
 

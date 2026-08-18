@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS `StampTableV4` (
   `message_index` int DEFAULT NULL,
   `stamp_base64` mediumtext,
   `stamp_mimetype` varchar(24) DEFAULT NULL,
-  `stamp_url` varchar(106) DEFAULT NULL,
+  `stamp_url` varchar(512) DEFAULT NULL,
   `supply` bigint unsigned DEFAULT NULL,
   `block_time` datetime NULL DEFAULT NULL,
   `tx_hash` varchar(64) NOT NULL,

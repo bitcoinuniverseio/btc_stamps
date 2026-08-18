@@ -1,5 +1,6 @@
 import json
 import logging
+import gzip
 import zlib
 from unittest.mock import patch
 
@@ -61,6 +62,16 @@ class TestZlibCompression:
         assert stamp_data.decoded_base64 == expected_dict
         assert stamp_data.file_suffix == "json"
         assert stamp_data.ident == "SRC-20"
+
+    def test_p2wsh_keeps_exact_gzip_bytes_before_display_detection(self):
+        svg = b'<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
+        compressed = gzip.compress(svg, mtime=0)
+        stamp_data = self.create_stamp_data(block_index=999999, p2wsh_data=compressed)
+
+        stamp_data.process_p2wsh_data(lambda encoded, _height: (compressed, True))
+
+        assert stamp_data._canonical_media_bytes == compressed
+        assert stamp_data._canonical_media_bytes != svg
 
     def test_zlib_decompress_valid_generic_json(self):
         """Test zlib decompression with generic JSON data"""
