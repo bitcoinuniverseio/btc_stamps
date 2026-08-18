@@ -55,6 +55,7 @@ class TestAsyncUpload:
             mock.AWS_INVALIDATE_CACHE = True
             mock.S3_OBJECTS = {}
             mock.AWS_S3_CLIENT = Mock()
+            mock.UNIVERSE_MEDIA_ENABLED = True
             yield mock
 
     @pytest.fixture
@@ -83,104 +84,66 @@ class TestAsyncUpload:
 
         assert task.mime_type == "binary/octet-stream"
 
-    @patch("index_core.async_upload.upload_file_to_s3")
-    @patch("index_core.async_upload.update_s3_db_objects")
-    def test_process_upload_task_new_file(self, mock_update_db, mock_upload, mock_config, mock_db_manager):
-        """Test processing upload task for new file."""
-        # Setup
-        db_conn = mock_db_manager.connect.return_value
-        mock_config.S3_OBJECTS = {}  # No existing file
-
+    @patch("index_core.async_upload.upload_universe_media")
+    def test_process_upload_task_new_file(self, mock_upload, mock_config, mock_db_manager):
+        """Test processing a new file through central ingestion."""
         file_obj = BytesIO(b"new content")
         task = UploadTask("newfile.png", "image/png", file_obj, "newhash")
 
-        # Execute
         async_upload._process_upload_task(task)
 
-        # Assert
-        mock_upload.assert_called_once_with(
-            file_obj, "test-bucket", "stamps/newfile.png", mock_config.AWS_S3_CLIENT, content_type="image/png"
-        )
-        mock_update_db.assert_called_once_with(db_conn, "newfile.png", "newhash")
-        db_conn.close.assert_called()
+        mock_upload.assert_called_once_with("newfile.png", "image/png", file_obj)
+        mock_db_manager.connect.assert_not_called()
 
-    @patch("index_core.async_upload.upload_file_to_s3")
-    @patch("index_core.async_upload.update_s3_db_objects")
-    def test_process_upload_task_existing_same_hash(self, mock_update_db, mock_upload, mock_config, mock_db_manager, caplog):
-        """Test skipping upload when file exists with same hash."""
-        # Setup
-        db_conn = mock_db_manager.connect.return_value
+    @patch("index_core.async_upload.upload_universe_media")
+    def test_process_upload_task_delegates_global_dedup(self, mock_upload, mock_config, mock_db_manager):
+        """Central ingestion owns deduplication instead of a local S3 listing."""
         mock_config.S3_OBJECTS = {"stamps/existing.png": {"md5": "samehash"}}
-
         file_obj = BytesIO(b"content")
         task = UploadTask("existing.png", "image/png", file_obj, "samehash")
 
-        # Execute
-        with caplog.at_level(logging.DEBUG):
-            async_upload._process_upload_task(task)
+        async_upload._process_upload_task(task)
 
-        # Assert
-        mock_upload.assert_not_called()
-        mock_update_db.assert_not_called()
-        assert "already exists in S3. Skipping upload" in caplog.text
-        db_conn.close.assert_called()
+        mock_upload.assert_called_once_with("existing.png", "image/png", file_obj)
+        mock_db_manager.connect.assert_not_called()
 
-    @patch("index_core.async_upload.upload_file_to_s3")
-    @patch("index_core.async_upload.update_s3_db_objects")
-    @patch("index_core.async_upload.invalidate_with_retries")
-    def test_process_upload_task_existing_different_hash(
-        self, mock_invalidate, mock_update_db, mock_upload, mock_config, mock_db_manager
-    ):
-        """Test uploading file with different hash and CloudFront invalidation."""
-        # Setup
-        db_conn = mock_db_manager.connect.return_value
+    @patch("index_core.async_upload.upload_universe_media")
+    def test_process_upload_task_existing_different_hash(self, mock_upload, mock_config, mock_db_manager):
+        """Filename drift is verified centrally without legacy cache invalidation."""
         mock_config.S3_OBJECTS = {"stamps/updated.png": {"md5": "oldhash"}}
-
         file_obj = BytesIO(b"updated content")
         task = UploadTask("updated.png", "image/png", file_obj, "newhash")
 
-        # Execute
         async_upload._process_upload_task(task)
 
-        # Assert
-        mock_upload.assert_called_once()
-        mock_update_db.assert_called_once_with(db_conn, "updated.png", "newhash")
-        mock_invalidate.assert_called_once_with("stamps/updated.png", "ABCD1234")
-        db_conn.close.assert_called()
+        mock_upload.assert_called_once_with("updated.png", "image/png", file_obj)
+        mock_db_manager.connect.assert_not_called()
 
-    @patch("index_core.async_upload.upload_file_to_s3")
+    @patch("index_core.async_upload.upload_universe_media")
     def test_process_upload_task_handles_upload_error(self, mock_upload, mock_config, mock_db_manager, caplog):
-        """Test handling upload errors."""
-        # Setup
-        db_conn = mock_db_manager.connect.return_value
-        mock_config.S3_OBJECTS = {}
-        mock_upload.side_effect = Exception("S3 error")
+        """Test handling central ingestion errors."""
+        mock_upload.side_effect = Exception("central error")
 
         file_obj = BytesIO(b"content")
         task = UploadTask("error.png", "image/png", file_obj, "hash123")
 
-        # Execute
-        with caplog.at_level(logging.WARNING):
-            async_upload._process_upload_task(task)
-
-        # Assert
-        assert "ERROR: Unable to upload error.png to S3" in caplog.text
-        db_conn.close.assert_called()
-
-    def test_process_upload_task_handles_db_error(self, mock_config, mock_db_manager, caplog):
-        """Test handling database connection errors."""
-        # Setup
-        mock_db_manager.connect.side_effect = Exception("DB connection failed")
-
-        file_obj = BytesIO(b"content")
-        task = UploadTask("test.png", "image/png", file_obj, "hash123")
-
-        # Execute
         with caplog.at_level(logging.ERROR):
             async_upload._process_upload_task(task)
 
-        # Assert
-        assert "Unexpected error in upload worker" in caplog.text
+        assert "Universe media upload failed for error.png" in caplog.text
+        mock_db_manager.connect.assert_not_called()
+
+    @patch("index_core.async_upload.upload_universe_media")
+    def test_process_upload_task_does_not_touch_legacy_db(self, mock_upload, mock_config, mock_db_manager):
+        """Central ingestion cannot select the legacy S3 metadata database."""
+        mock_db_manager.connect.side_effect = Exception("DB connection failed")
+        file_obj = BytesIO(b"content")
+        task = UploadTask("test.png", "image/png", file_obj, "hash123")
+
+        async_upload._process_upload_task(task)
+
+        mock_upload.assert_called_once_with("test.png", "image/png", file_obj)
+        mock_db_manager.connect.assert_not_called()
 
     def test_upload_worker_processes_queue(self, mock_config):
         """Test upload worker thread processing queue."""
@@ -431,21 +394,10 @@ class TestAsyncUpload:
 
         task = UploadTask("test.png", "image/png", file_obj, "hash")
 
-        with patch("index_core.async_upload.upload_file_to_s3") as mock_upload:
+        with patch("index_core.async_upload.upload_universe_media"):
             with patch("index_core.async_upload.config") as mock_config:
-                with patch("index_core.async_upload.update_s3_db_objects"):
-                    with patch("index_core.async_upload.upload_db_manager") as mock_db_manager:
-                        # Setup mocks
-                        mock_config.S3_OBJECTS = {}
-                        mock_config.AWS_S3_BUCKETNAME = "test-bucket"
-                        mock_config.AWS_S3_CLIENT = Mock()
-                        mock_config.AWS_CLOUDFRONT_DISTRIBUTION_ID = None  # Disable CloudFront to simplify
-
-                        # Mock database connection
-                        mock_db = Mock()
-                        mock_db_manager.connect.return_value = mock_db
-
-                        async_upload._process_upload_task(task)
+                mock_config.UNIVERSE_MEDIA_ENABLED = True
+                async_upload._process_upload_task(task)
 
         # Assert - file should be at position 0 after seek(0) call in _process_upload_task
         assert file_obj.tell() == 0

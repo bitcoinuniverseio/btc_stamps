@@ -7,6 +7,7 @@ in the background.
 """
 
 import logging
+import hashlib
 import os
 import queue
 import threading
@@ -18,6 +19,8 @@ from typing import Optional
 import config
 from index_core.aws import invalidate_with_retries, update_s3_db_objects, upload_file_to_s3
 from index_core.database_manager import DatabaseManager
+from index_core.universe_media import upload_universe_media
+from index_core.universe_media_queue import UniverseMediaQueue
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +36,17 @@ upload_db_manager = DatabaseManager()
 # Flag to control the upload worker thread
 _upload_worker_running = False
 _upload_worker_thread = None
+_universe_queue = None
+
+
+def _durable_universe_queue() -> UniverseMediaQueue:
+    global _universe_queue
+    if _universe_queue is None:
+        _universe_queue = UniverseMediaQueue(
+            config.UNIVERSE_MEDIA_SPOOL_DIR,
+            config.UNIVERSE_MEDIA_QUEUE_MAX_ATTEMPTS,
+        )
+    return _universe_queue
 
 
 class UploadTask:
@@ -69,6 +83,14 @@ def _process_upload_task(task: UploadTask) -> None:
     Args:
         task: The upload task to process
     """
+    if config.UNIVERSE_MEDIA_ENABLED:
+        try:
+            task.file_obj.seek(0)
+            upload_universe_media(task.filename, task.mime_type, task.file_obj)
+            logger.debug(f"Uploaded {task.filename} through the shared Universe media service")
+        except Exception as e:
+            logger.error(f"Universe media upload failed for {task.filename}: {e}", exc_info=True)
+        return
     try:
         # Get a dedicated database connection for this upload
         db = upload_db_manager.connect()
@@ -113,6 +135,25 @@ def _process_upload_task(task: UploadTask) -> None:
         logger.error(f"Unexpected error in upload worker: {e}", exc_info=True)
 
 
+def _process_universe_job(job_id: int) -> None:
+    durable = _durable_universe_queue()
+    job = durable.claim(job_id)
+    if job is None:
+        return
+    try:
+        with open(job.body_path, "rb") as source:
+            body = source.read()
+        if hashlib.sha256(body).hexdigest() != job.content_sha256:
+            raise RuntimeError("Universe media spool integrity mismatch")
+        upload_universe_media(job.filename, job.mime_type, BytesIO(body))
+        durable.complete(job.job_id)
+    except Exception as error:
+        retry = durable.fail(job.job_id, str(error))
+        logger.error(f"Universe media upload failed for {job.filename}: {error}", exc_info=True)
+        if not retry:
+            logger.error(f"Universe media job {job.job_id} reached its terminal retry limit")
+
+
 def _upload_worker() -> None:
     """
     Worker thread function that processes the upload queue.
@@ -129,7 +170,10 @@ def _upload_worker() -> None:
 
             try:
                 # Process the upload task
-                _process_upload_task(task)
+                if isinstance(task, int):
+                    _process_universe_job(task)
+                else:
+                    _process_upload_task(task)
             except Exception as e:
                 logger.error(f"Error processing upload task: {e}", exc_info=True)
             finally:
@@ -137,7 +181,9 @@ def _upload_worker() -> None:
                 upload_queue.task_done()
 
         except queue.Empty:
-            # No tasks in the queue, continue waiting
+            if config.UNIVERSE_MEDIA_ENABLED:
+                for job_id in _durable_universe_queue().pending_ids(limit=1000):
+                    upload_queue.put(job_id)
             continue
         except Exception as e:
             logger.error(f"Unexpected error in upload worker: {e}", exc_info=True)
@@ -158,6 +204,9 @@ def start_upload_worker() -> None:
         return
 
     _upload_worker_running = True
+    if config.UNIVERSE_MEDIA_ENABLED:
+        for job_id in _durable_universe_queue().pending_ids():
+            upload_queue.put(job_id)
     _upload_worker_thread = threading.Thread(target=_upload_worker, daemon=True)
     _upload_worker_thread.start()
 
@@ -225,6 +274,16 @@ def queue_file_upload(filename: str, mime_type: str, file_obj: BytesIO, file_obj
     if not _upload_worker_running:
         logger.warning("Upload worker thread is not running, starting it now")
         start_upload_worker()
+
+    if config.UNIVERSE_MEDIA_ENABLED:
+        job_id = _durable_universe_queue().enqueue(
+            filename,
+            mime_type or "application/octet-stream",
+            file_obj.getvalue(),
+        )
+        upload_queue.put(job_id)
+        logger.debug(f"Queued durable Universe media job for {filename}")
+        return
 
     # Create a copy of the file object to avoid issues with concurrent access
     file_copy = BytesIO(file_obj.getvalue())

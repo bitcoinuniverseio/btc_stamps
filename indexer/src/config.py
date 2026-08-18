@@ -273,6 +273,27 @@ S3_OBJECTS: Dict[str, Dict[str, str]] = {}
 AWS_INVALIDATE_CACHE: Optional[str] = os.environ.get("AWS_INVALIDATE_CACHE", None)
 USE_ASYNC_UPLOADS = os.environ.get("USE_ASYNC_UPLOADS", "1") == "1"
 
+# All new Stamp media should flow through the single Universe media service.
+# The service owns B2 credentials, global SHA-256 deduplication, legal holds,
+# mapping registration, and read-back verification. The indexer receives only
+# a distinct ingestion token.
+UNIVERSE_MEDIA_INGEST_URL = os.environ.get("UNIVERSE_MEDIA_INGEST_URL", "").strip().rstrip("/")
+UNIVERSE_MEDIA_INGEST_TOKEN = os.environ.get("UNIVERSE_MEDIA_INGEST_TOKEN", "").strip()
+UNIVERSE_MEDIA_ENABLED = bool(STORE_FILES and UNIVERSE_MEDIA_INGEST_URL and UNIVERSE_MEDIA_INGEST_TOKEN)
+UNIVERSE_MEDIA_UPLOAD_ATTEMPTS = max(1, min(10, int(os.environ.get("UNIVERSE_MEDIA_UPLOAD_ATTEMPTS", "5"))))
+UNIVERSE_MEDIA_CONNECT_TIMEOUT = max(1.0, min(30.0, float(os.environ.get("UNIVERSE_MEDIA_CONNECT_TIMEOUT", "5"))))
+UNIVERSE_MEDIA_READ_TIMEOUT = max(5.0, min(300.0, float(os.environ.get("UNIVERSE_MEDIA_READ_TIMEOUT", "90"))))
+UNIVERSE_MEDIA_SPOOL_DIR = os.path.abspath(os.environ.get("UNIVERSE_MEDIA_SPOOL_DIR", "universe-media-spool"))
+UNIVERSE_MEDIA_QUEUE_MAX_ATTEMPTS = max(
+    1, min(100, int(os.environ.get("UNIVERSE_MEDIA_QUEUE_MAX_ATTEMPTS", "20")))
+)
+if bool(UNIVERSE_MEDIA_INGEST_URL) != bool(UNIVERSE_MEDIA_INGEST_TOKEN):
+    raise ConfigurationError("UNIVERSE_MEDIA_INGEST_URL and UNIVERSE_MEDIA_INGEST_TOKEN must be configured together")
+if UNIVERSE_MEDIA_INGEST_TOKEN and len(UNIVERSE_MEDIA_INGEST_TOKEN) < 32:
+    raise ConfigurationError("UNIVERSE_MEDIA_INGEST_TOKEN must contain at least 32 characters")
+if UNIVERSE_MEDIA_ENABLED and not os.path.isabs(os.environ.get("UNIVERSE_MEDIA_SPOOL_DIR", "")):
+    raise ConfigurationError("UNIVERSE_MEDIA_SPOOL_DIR must be an explicit absolute persistent path")
+
 # Define for Quicknode or similar remote nodes which use a token
 QUICKNODE_ENDPOINT: Optional[str] = os.environ.get("QUICKNODE_URL", None)  # Fallback to old URL for compatibility
 QUICKNODE_API_KEY: Optional[str] = os.environ.get("QUICKNODE_API_KEY", None)  # Used for Bearer token auth

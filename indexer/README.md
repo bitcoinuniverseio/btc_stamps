@@ -99,7 +99,21 @@ services:
 | `BITCOIND_PORT` | Bitcoin Core RPC port | `8332` |
 | `DOCKER_CONTAINER` | Set to 1 when running in container | `1` |
 | `STORE_FILES` | Whether to store files | `1` |
+| `UNIVERSE_MEDIA_INGEST_URL` | Shared Universe media object-ingest endpoint; required when `STORE_FILES=1` | - |
+| `UNIVERSE_MEDIA_INGEST_TOKEN` | Shared-ingest bearer token (minimum 32 characters) | - |
+| `UNIVERSE_MEDIA_SPOOL_DIR` | Absolute persistent path for the verified retry spool | - |
 | `DEBUG` | Enable debug mode | `0` |
+
+New and historical Stamp media must use the shared Universe service. The
+indexer never needs Backblaze credentials or a per-project bucket. After the
+schema update and service configuration, migrate historical exact bytes with:
+
+```bash
+poetry run python tools/backfill_universe_media.py --drain
+```
+
+The command is resumable. Missing or undecodable consensus source bytes and
+terminal uploads keep its source health incomplete and return a non-zero exit.
 
 ## Testing Docker Builds
 

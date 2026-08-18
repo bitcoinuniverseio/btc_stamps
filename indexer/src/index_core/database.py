@@ -2747,6 +2747,9 @@ def apply_schema_updates(db, cursor):
             "indexes": [
                 ("idx_encoding_method", ["encoding_method"]),
             ],
+            "modifications": [
+                ("stamp_url", "VARCHAR(512) NULL", "varchar(512)"),
+            ],
         },
     }
 
@@ -2797,6 +2800,31 @@ def apply_schema_updates(db, cursor):
                     db.rollback()
             else:
                 logger.debug(f"Column {column_name} already exists in {table_name}")
+
+        # Apply explicitly declared widening/type changes. These are kept
+        # narrow and idempotent because the legacy updater otherwise handles
+        # additions only.
+        for column_name, target_definition, expected_column_type in updates.get("modifications", []):
+            cursor.execute(
+                """
+                SELECT LOWER(COLUMN_TYPE)
+                FROM information_schema.columns
+                WHERE table_schema = DATABASE()
+                AND table_name = %s
+                AND column_name = %s
+                """,
+                (table_name, column_name),
+            )
+            row = cursor.fetchone()
+            if row and row[0] != expected_column_type:
+                try:
+                    cursor.execute(f"ALTER TABLE `{table_name}` MODIFY COLUMN `{column_name}` {target_definition}")
+                    db.commit()
+                    logger.info(f"Modified column {column_name} on {table_name} to {expected_column_type}")
+                    updates_applied += 1
+                except Exception as e:
+                    logger.error(f"Failed to modify column {column_name} on {table_name}: {e}")
+                    db.rollback()
 
         # Check and add missing indexes
         for index_name, index_columns in updates.get("indexes", []):
