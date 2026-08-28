@@ -2,7 +2,6 @@ import base64
 import importlib.util
 from pathlib import Path
 
-
 _SCRIPT = Path(__file__).parents[1] / "tools" / "backfill_universe_media.py"
 _SPEC = importlib.util.spec_from_file_location("backfill_universe_media", _SCRIPT)
 backfill = importlib.util.module_from_spec(_SPEC)
@@ -18,14 +17,15 @@ def test_decode_exact_media_preserves_bytes():
 
 def test_media_filename_supports_central_and_legacy_urls():
     tx_hash = "a" * 64
-    assert backfill.media_filename(
-        tx_hash,
-        f"https://core.example/universe-media/v1/assets/stamps/{tx_hash}.svg/content?role=display",
-        "image/svg+xml",
-    ) == f"{tx_hash}.svg"
-    assert backfill.media_filename(tx_hash, f"https://legacy.example/stamps/{tx_hash}.png", "image/png") == (
-        f"{tx_hash}.png"
+    assert (
+        backfill.media_filename(
+            tx_hash,
+            f"https://core.example/universe-media/v1/assets/stamps/{tx_hash}.svg/content?role=display",
+            "image/svg+xml",
+        )
+        == f"{tx_hash}.svg"
     )
+    assert backfill.media_filename(tx_hash, f"https://legacy.example/stamps/{tx_hash}.png", "image/png") == (f"{tx_hash}.png")
 
 
 def test_media_filename_has_deterministic_fallback():

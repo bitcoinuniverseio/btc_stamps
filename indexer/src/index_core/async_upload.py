@@ -6,8 +6,8 @@ allowing the main indexer process to continue while files are uploaded
 in the background.
 """
 
-import logging
 import hashlib
+import logging
 import os
 import queue
 import threading
