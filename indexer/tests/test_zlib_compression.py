@@ -1,6 +1,6 @@
+import gzip
 import json
 import logging
-import gzip
 import zlib
 from unittest.mock import patch
 
