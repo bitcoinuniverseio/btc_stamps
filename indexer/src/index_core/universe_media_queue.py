@@ -36,8 +36,7 @@ class UniverseMediaQueue:
 
     def _initialize(self) -> None:
         with self._connect() as connection:
-            connection.execute(
-                """
+            connection.execute("""
                 CREATE TABLE IF NOT EXISTS media_jobs (
                   job_id INTEGER PRIMARY KEY AUTOINCREMENT,
                   filename TEXT NOT NULL,
@@ -52,13 +51,9 @@ class UniverseMediaQueue:
                   updated_at REAL NOT NULL,
                   UNIQUE(filename, content_sha256)
                 )
-                """
-            )
-            connection.execute(
-                "CREATE INDEX IF NOT EXISTS media_jobs_claim ON media_jobs(status, next_retry_at, job_id)"
-            )
-            connection.execute(
-                """
+                """)
+            connection.execute("CREATE INDEX IF NOT EXISTS media_jobs_claim ON media_jobs(status, next_retry_at, job_id)")
+            connection.execute("""
                 CREATE TABLE IF NOT EXISTS media_backfill_sources (
                   source_name TEXT PRIMARY KEY,
                   cursor_value INTEGER NOT NULL DEFAULT 0,
@@ -71,11 +66,8 @@ class UniverseMediaQueue:
                   last_error TEXT,
                   updated_at REAL NOT NULL
                 )
-                """
-            )
-            connection.execute(
-                "UPDATE media_jobs SET status='retry', next_retry_at=0 WHERE status='processing'"
-            )
+                """)
+            connection.execute("UPDATE media_jobs SET status='retry', next_retry_at=0 WHERE status='processing'")
 
     def enqueue(self, filename: str, mime_type: str, body: bytes) -> int:
         if not filename or not body:
@@ -178,9 +170,7 @@ class UniverseMediaQueue:
 
     def fail(self, job_id: int, message: str) -> bool:
         with self._connect() as connection:
-            row = connection.execute(
-                "SELECT attempts FROM media_jobs WHERE job_id=?", (job_id,)
-            ).fetchone()
+            row = connection.execute("SELECT attempts FROM media_jobs WHERE job_id=?", (job_id,)).fetchone()
             if not row:
                 return False
             attempts = int(row[0]) + 1
@@ -206,9 +196,7 @@ class UniverseMediaQueue:
         with self._connect() as connection:
             counts = {
                 str(row[0]): int(row[1])
-                for row in connection.execute(
-                    "SELECT status,COUNT(*) FROM media_jobs GROUP BY status"
-                ).fetchall()
+                for row in connection.execute("SELECT status,COUNT(*) FROM media_jobs GROUP BY status").fetchall()
             }
             oldest = connection.execute(
                 """
@@ -229,13 +217,11 @@ class UniverseMediaQueue:
                     "status": str(row[7]),
                     "last_error": row[8],
                 }
-                for row in connection.execute(
-                    """
+                for row in connection.execute("""
                     SELECT source_name,cursor_value,high_watermark,scanned,
                            enqueued,missing,decode_failures,status,last_error
                     FROM media_backfill_sources ORDER BY source_name
-                    """
-                ).fetchall()
+                    """).fetchall()
             ]
         terminal = counts.get("failed", 0)
         incomplete_sources = sum(1 for source in sources if source["status"] != "complete")

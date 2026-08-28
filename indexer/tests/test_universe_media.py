@@ -31,9 +31,7 @@ def test_upload_binds_exact_stamp_bytes_and_transaction_identity(monkeypatch, en
     post = Mock(return_value=response)
     monkeypatch.setattr(universe_media.requests, "post", post)
 
-    result = universe_media.upload_universe_media(
-        f"{transaction_id}.png", "image/png", BytesIO(body)
-    )
+    result = universe_media.upload_universe_media(f"{transaction_id}.png", "image/png", BytesIO(body))
 
     assert result["contentHash"] == content_hash
     _, kwargs = post.call_args
@@ -74,6 +72,5 @@ def test_public_url_uses_central_stable_identity(monkeypatch, enabled):
     )
 
     assert universe_media.public_universe_media_url("stamp name.svg") == (
-        "https://api.bitcoinuniverse.io/universe-media/v1/assets/stamps/"
-        "stamp%20name.svg/content?role=display"
+        "https://api.bitcoinuniverse.io/universe-media/v1/assets/stamps/" "stamp%20name.svg/content?role=display"
     )
