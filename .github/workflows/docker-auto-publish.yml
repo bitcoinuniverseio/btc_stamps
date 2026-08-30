@@ -31,7 +31,7 @@ on:
 
 jobs:
   build_and_push:
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-build_and_push/runner=universe-hosted/cpu=2+8/env=production
     permissions:
       # contents: write so the release path can append the signed image digest
       # + cosign verify instructions to the GitHub Release notes.
