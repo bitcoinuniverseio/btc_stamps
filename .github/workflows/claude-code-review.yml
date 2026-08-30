@@ -30,7 +30,7 @@ jobs:
       !contains(github.event.pull_request.title, 'Bump version') &&
       !contains(github.event.pull_request.body || '', 'Bump version')
     
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-claude_review/runner=universe-hosted/cpu=2+8/env=production
     timeout-minutes: 30
     permissions:
       contents: read

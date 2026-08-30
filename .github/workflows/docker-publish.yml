@@ -25,7 +25,7 @@ jobs:
   push_to_registry:
     needs: [test]
     if: ${{ always() && (inputs.skip_tests || success()) }}
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-push_to_registry/runner=universe-hosted/cpu=2+8/env=production
     environment: ${{ inputs.environment }}
     steps:
       - name: Check out the repo

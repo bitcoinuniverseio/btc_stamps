@@ -10,7 +10,7 @@ on:
 jobs:
   coverage:
     name: Code Coverage Analysis
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-coverage/runner=universe-hosted/cpu=2+8/env=production
     # Only run coverage on PRs to main/dev or manual dispatch
     if: (github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     
