@@ -48,7 +48,7 @@ jobs:
   # unrelated PRs while the workflow still runs (so the gate reports).
   changes:
     name: Detect reparse-relevant changes
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-changes/runner=universe-hosted/cpu=2+8/env=production
     if: (github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
@@ -78,7 +78,7 @@ jobs:
     needs: changes
     # Heavy reparse only when consensus-surface files change (or a manual run).
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.reparse == 'true'
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-reparse_validate/runner=universe-hosted/cpu=2+8/env=production
     # NOTE (#907): continue-on-error removed — a genuine reparse failure must go
     # red so this gate can be made required. The deliberate scope exclusions
     # (TIER3_CROSS_BLOCK_LEDGER) remain SKIPS inside ci_reparse_subprocess.py
@@ -178,7 +178,7 @@ jobs:
     name: Reparse Consensus Validation Gate
     needs: [changes, reparse-validate]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-reparse_validate_gate/runner=universe-hosted/cpu=2+8/env=production
     steps:
       - name: Resolve gate from reparse matrix result
         env:

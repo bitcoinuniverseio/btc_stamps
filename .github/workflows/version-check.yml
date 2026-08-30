@@ -18,7 +18,7 @@ on:
 
 jobs:
   version-check:
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-version_check/runner=universe-hosted/cpu=2+8/env=production
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
