@@ -20,7 +20,7 @@ jobs:
 
   test-build:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-test_build/runner=universe-hosted/cpu=2+8/env=production
     outputs:
       status: ${{ steps.test.outputs.test_status }}
 

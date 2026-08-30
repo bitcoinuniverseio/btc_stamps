@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   label:
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}-label/runner=universe-hosted/cpu=2+8/env=production
     steps:
       # No checkout of PR code. Metadata + labels API only.
       - name: Evaluate PR and apply consensus label
