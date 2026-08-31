@@ -25,6 +25,7 @@ on:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
     paths:
+      - '.gitattributes'
       - 'indexer/**'
       - 'docker/**'
       - '.github/workflows/docker-auto-publish.yml'
@@ -32,6 +33,9 @@ on:
 jobs:
   build_and_push:
     runs-on: runs-on=${{ github.run_id }}-build_and_push/runner=universe-hosted/cpu=2+8/env=production
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: bitcoinuniverseio/btc-stamps-indexer
     permissions:
       # contents: write so the release path can append the signed image digest
       # + cosign verify instructions to the GitHub Release notes.
@@ -69,9 +73,9 @@ jobs:
               echo "PRIMARY_TAG=latest"
               echo "VERSION_TAG=${RELEASE_VERSION}"
               echo "TAGS<<EOF"
-              echo "btcstamps/indexer:latest"
-              echo "btcstamps/indexer:${RELEASE_VERSION}"
-              echo "btcstamps/indexer:${SHA_TAG}"
+              echo "${REGISTRY}/${IMAGE_NAME}:latest"
+              echo "${REGISTRY}/${IMAGE_NAME}:${RELEASE_VERSION}"
+              echo "${REGISTRY}/${IMAGE_NAME}:${SHA_TAG}"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           else
@@ -82,52 +86,18 @@ jobs:
               echo "IS_RELEASE=false"
               echo "PRIMARY_TAG=edge"
               echo "TAGS<<EOF"
-              echo "btcstamps/indexer:edge"
-              echo "btcstamps/indexer:${SHA_TAG}"
+              echo "${REGISTRY}/${IMAGE_NAME}:edge"
+              echo "${REGISTRY}/${IMAGE_NAME}:${SHA_TAG}"
               echo "EOF"
             } >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
-          username: btcstamps
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Clean up old staging Docker tags
-        run: |
-          # Generate a temporary access token
-          TOKEN=$(curl -s -H "Content-Type: application/json" -X POST \
-            -d '{"username": "btcstamps", "password": "${{ secrets.DOCKERHUB_TOKEN }}"}' \
-            https://hub.docker.com/v2/users/login/ | jq -r .token)
-
-          # Staging tags are the per-commit build markers :sha-<short>. They
-          # accumulate on every main push; keep only the 5 most recent.
-          #
-          # HARD SAFETY: this selection can NEVER touch a clean release tag
-          # (^X.Y.Z$) or the moving pointers (:latest / :edge) — it matches ONLY
-          # names shaped exactly like "sha-<7 hex>".
-          echo "Listing sha- staging tags to prune..."
-          TAGS=$(curl -s -H "Authorization: Bearer $TOKEN" \
-                "https://hub.docker.com/v2/repositories/btcstamps/indexer/tags?page_size=100" | \
-                jq -r '.results[]
-                        | select(.name | test("^sha-[0-9a-f]{7}$"))
-                        | "\(.last_updated)\t\(.name)"' | \
-                sort -r | \
-                cut -f2)
-
-          TAG_COUNT=$(echo "$TAGS" | grep -c . || true)
-          if [ "$TAG_COUNT" -gt 5 ]; then
-            TAGS_TO_DELETE=$(echo "$TAGS" | tail -n +6)
-            echo "Found $TAG_COUNT sha- tags, deleting $((TAG_COUNT - 5)) older ones (keeping newest 5)"
-            for TAG in $TAGS_TO_DELETE; do
-              echo "Deleting staging tag: $TAG"
-              curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
-                "https://hub.docker.com/v2/repositories/btcstamps/indexer/tags/$TAG/"
-            done
-          else
-            echo "Only $TAG_COUNT sha- tags found, no pruning needed"
-          fi
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
         id: build
@@ -154,7 +124,7 @@ jobs:
             echo "::error::No image digest available from build step; cannot sign release"
             exit 1
           fi
-          IMAGE_REF="btcstamps/indexer@${DIGEST}"
+          IMAGE_REF="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
           echo "IMAGE_REF=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
           echo "Release image pinned by digest: ${IMAGE_REF}"
 
@@ -167,7 +137,7 @@ jobs:
         env:
           # Keyless signing: identity comes from the GitHub Actions OIDC token
           # (id-token: write). No private keys are stored anywhere. The signature
-          # is stored alongside the image on Docker Hub.
+          # is stored alongside the image in GitHub Container Registry.
           COSIGN_YES: "true"
         run: |
           cosign sign --yes "${{ steps.digest.outputs.IMAGE_REF }}"
@@ -213,7 +183,7 @@ jobs:
             sleep 5
           done
           if ! gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::warning::GitHub Release $TAG not found after waiting; skipping digest note (image is still signed on Docker Hub)"
+            echo "::warning::GitHub Release $TAG not found after waiting; skipping digest note (the registry image is still signed)"
             exit 0
           fi
 
@@ -227,7 +197,7 @@ jobs:
           gh release view "$TAG" --json body --jq '.body' > current_notes.md || true
           {
             printf '\n---\n\n## Signed release image\n\n'
-            printf 'This release is published to Docker Hub as an immutable digest and signed\n'
+            printf 'This release is published to GitHub Container Registry as an immutable digest and signed\n'
             printf 'keyless (Sigstore/cosign, GitHub Actions OIDC - no private keys):\n\n'
             printf '    %s\n\n' "$IMAGE_REF"
             printf '**Verify the signature:**\n\n'
@@ -247,18 +217,8 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: 'btcstamps/indexer:${{ steps.set-tag.outputs.PRIMARY_TAG }}'
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set-tag.outputs.PRIMARY_TAG }}'
           format: 'table'
           exit-code: '0'  # Don't fail the build, just report
           severity: 'HIGH,CRITICAL'
           skip-files: 'app/bootstrap/srcbackground.csv,/usr/src/app/files/**'
-
-      - name: Update Docker Hub Description
-        uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4
-        if: steps.set-tag.outputs.IS_RELEASE == 'true'
-        with:
-          username: btcstamps
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: btcstamps/indexer
-          short-description: "Bitcoin Stamps Indexer - Official docker image"
-          readme-filepath: ./indexer/README.md
