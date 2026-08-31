@@ -42,6 +42,7 @@ jobs:
       id-token: write
 
     steps:
+      - uses: runs-on/action@v2
       - name: Check out the repo
         uses: actions/checkout@v5
 
