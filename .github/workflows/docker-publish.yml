@@ -15,6 +15,10 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   test:
     if: ${{ !inputs.skip_tests }}
@@ -28,23 +32,25 @@ jobs:
     runs-on: runs-on=${{ github.run_id }}-push_to_registry/runner=universe-hosted/cpu=2+8/env=production
     environment: ${{ inputs.environment }}
     steps:
+      - uses: runs-on/action@v2
       - name: Check out the repo
-        uses: actions/checkout@v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
       
-      - name: Log in to Docker Hub
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
-          username: btcstamps
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: btcstamps/indexer
+          images: ghcr.io/bitcoinuniverseio/btc-stamps-indexer
           tags: |
             type=raw,value=${{ inputs.tag }}
             type=sha,prefix=,suffix=,format=short
@@ -62,7 +68,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: 'btc_stamps/indexer:${{ inputs.tag }}'
+          image-ref: 'ghcr.io/bitcoinuniverseio/btc-stamps-indexer:${{ inputs.tag }}'
           format: 'table'
           exit-code: '1'
           severity: 'CRITICAL'

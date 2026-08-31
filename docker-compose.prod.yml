@@ -20,7 +20,7 @@ services:
     profiles: ["local-db-disabled"]
 
   indexer:
-    image: ${IMAGE_NAME:-btcstamps/indexer:latest}
+    image: ${IMAGE_NAME:-ghcr.io/bitcoinuniverseio/btc-stamps-indexer:latest}
     pull_policy: always
     restart: unless-stopped
     environment:

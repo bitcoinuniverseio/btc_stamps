@@ -20,7 +20,7 @@ Only clean `X.Y.Z` release tags and `latest` are signed. `edge` and
 Release images are **signed keyless** with [Sigstore/cosign](https://www.sigstore.dev/)
 (GitHub Actions OIDC — no private keys) and carry an SPDX SBOM attestation. The
 matching [GitHub Release](https://github.com/stampchain-io/btc_stamps/releases)
-records the exact `btcstamps/indexer@sha256:…` digest. Verify provenance before
+records the exact `ghcr.io/bitcoinuniverseio/btc-stamps-indexer@sha256:…` digest. Verify provenance before
 running (substitute the release version and digest):
 
 ```bash
@@ -28,13 +28,13 @@ running (substitute the release version and digest):
 cosign verify \
   --certificate-identity-regexp '^https://github.com/stampchain-io/btc_stamps/.github/workflows/docker-auto-publish.yml@refs/tags/X.Y.Z$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  btcstamps/indexer@sha256:<digest>
+  ghcr.io/bitcoinuniverseio/btc-stamps-indexer@sha256:<digest>
 
 # Verify the SPDX SBOM attestation:
 cosign verify-attestation --type spdxjson \
   --certificate-identity-regexp '^https://github.com/stampchain-io/btc_stamps/.github/workflows/docker-auto-publish.yml@refs/tags/X.Y.Z$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  btcstamps/indexer@sha256:<digest>
+  ghcr.io/bitcoinuniverseio/btc-stamps-indexer@sha256:<digest>
 ```
 
 ## Quick Start
@@ -58,7 +58,7 @@ services:
       start_period: 15s
 
   indexer:
-    image: btcstamps/indexer:latest
+    image: ghcr.io/bitcoinuniverseio/btc-stamps-indexer:latest
     command: poetry run indexer
     volumes:
       - ./files:/usr/src/app/files

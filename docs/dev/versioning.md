@@ -69,12 +69,12 @@ What happens, hands-off, from there:
    `main` then **stays on the clean `X.Y.Z`** it was just bumped to — there is no
    reopen step and no development marker.
 3. **`docker-auto-publish.yml`** — the `X.Y.Z` tag push triggers the release
-   image build, which publishes `btcstamps/indexer:X.Y.Z` + `:latest` to Docker
+   image build, which publishes `ghcr.io/bitcoinuniverseio/btc-stamps-indexer:X.Y.Z` + `:latest` to GitHub Container Registry
    Hub, then **signs the image keyless and attaches an SPDX SBOM** (see
    [Verifying a signed release image](#verifying-a-signed-release-image)).
 
 Example: a `minor` bump from `1.9.2` produces tag `1.10.0`, Release `1.10.0`,
-Docker `btcstamps/indexer:1.10.0` + `:latest`, and `main` stays on `1.10.0`.
+Docker `ghcr.io/bitcoinuniverseio/btc-stamps-indexer:1.10.0` + `:latest`, and `main` stays on `1.10.0`.
 
 There is **no** manual "push a bump to main", "sync branches", or "force-push"
 step — the trunk model has none of those.
@@ -84,8 +84,8 @@ step — the trunk model has none of those.
 Every push to `main` (merged PRs) triggers `docker-auto-publish.yml`, which
 publishes **staging-only** images:
 
-- `btcstamps/indexer:edge` — a moving pointer to the newest `main` build.
-- `btcstamps/indexer:sha-<short>` — the specific commit build (7-char SHA). Only
+- `ghcr.io/bitcoinuniverseio/btc-stamps-indexer:edge` - a moving pointer to the newest `main` build.
+- `ghcr.io/bitcoinuniverseio/btc-stamps-indexer:sha-<short>` - the specific commit build (7-char SHA). Only
   the newest five `sha-*` tags are kept; older ones are pruned automatically.
 
 Staging pushes **never** publish `:latest` or a clean `:X.Y.Z` tag, and they are
@@ -97,7 +97,7 @@ tag.
 
 Release images are signed **keyless** (Sigstore/cosign via GitHub Actions OIDC —
 no private keys) and carry an SPDX SBOM attestation. Each GitHub Release records
-the exact `btcstamps/indexer@sha256:…` digest and the commands to verify it. The
+the exact `ghcr.io/bitcoinuniverseio/btc-stamps-indexer@sha256:…` digest and the commands to verify it. The
 signing identity is the release workflow running on the release tag:
 
 ```bash
@@ -106,13 +106,13 @@ signing identity is the release workflow running on the release tag:
 cosign verify \
   --certificate-identity-regexp '^https://github.com/stampchain-io/btc_stamps/.github/workflows/docker-auto-publish.yml@refs/tags/X.Y.Z$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  btcstamps/indexer@sha256:<digest>
+  ghcr.io/bitcoinuniverseio/btc-stamps-indexer@sha256:<digest>
 
 # Verify the SPDX SBOM attestation:
 cosign verify-attestation --type spdxjson \
   --certificate-identity-regexp '^https://github.com/stampchain-io/btc_stamps/.github/workflows/docker-auto-publish.yml@refs/tags/X.Y.Z$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  btcstamps/indexer@sha256:<digest>
+  ghcr.io/bitcoinuniverseio/btc-stamps-indexer@sha256:<digest>
 ```
 
 ## Files the automation updates
