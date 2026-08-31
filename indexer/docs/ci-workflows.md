@@ -131,4 +131,4 @@ publish flow.
 
 - Consensus-critical changes are gated by `reparse-validate.yml` + `freeze-drift.yml` in
   addition to the standard `python-check.yml` CI; see `indexer/ci/README.md`.
-- Sensitive credentials (Docker Hub, optional bitcoind RPC) are provided via GitHub Secrets.
+- Sensitive credentials, such as optional bitcoind RPC settings, are provided via GitHub Secrets.
