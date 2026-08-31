@@ -162,7 +162,7 @@ cd indexer
 # Run local development build (outputs to log files)
 ./run-container.sh --build
 
-# Run specific Docker Hub version with local MySQL
+# Run a specific registry version with local MySQL
 ./run-container.sh --image 1.9.1  # or --image edge (latest main build)
 
 # Run with logs to stdout (ideal for testing)
@@ -182,11 +182,11 @@ cd indexer
 
 **Database connection:**
 All modes use the MySQL connection details from your `.env.local` file, so you can test any
-Docker Hub version against your local database.
+registry version against your local database.
 
 > For backward compatibility, the legacy `local-dev.sh` script is still available and delegates to the new unified runner.
 
-### Quick Testing with Docker Hub Images
+### Quick testing with registry images
 
 For rapid testing without building locally:
 
@@ -204,7 +204,7 @@ cp .env.sample .env.local
 
 This will:
 
-- Pull the latest edge image from Docker Hub (newest main build)
+- Pull the latest edge image from GitHub Container Registry (newest main build)
 - Connect to your local MySQL database (specified in .env.local)
 - Output logs to stdout for easy debugging
 - Use your local Bitcoin node configuration
@@ -401,18 +401,18 @@ maintainers via the automated **Cut Release** workflow. See
 
 ## 🔏 Signed Releases
 
-Release images published to Docker Hub (`btcstamps/indexer`) are **signed keyless with
+Release images published to GitHub Container Registry (`ghcr.io/bitcoinuniverseio/btc-stamps-indexer`) are **signed keyless with
 [Sigstore/cosign](https://www.sigstore.dev/)** (GitHub Actions OIDC, no private keys) and
 carry an SPDX SBOM attestation. Each
 [GitHub Release](https://github.com/stampchain-io/btc_stamps/releases) records the exact
-`btcstamps/indexer@sha256:…` digest and the `cosign verify` command. To verify provenance
+`ghcr.io/bitcoinuniverseio/btc-stamps-indexer@sha256:…` digest and the `cosign verify` command. To verify provenance
 before running an image (substitute the release version and digest):
 
 ```bash
 cosign verify \
   --certificate-identity-regexp '^https://github.com/stampchain-io/btc_stamps/.github/workflows/docker-auto-publish.yml@refs/tags/X.Y.Z$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  btcstamps/indexer@sha256:<digest>
+  ghcr.io/bitcoinuniverseio/btc-stamps-indexer@sha256:<digest>
 ```
 
 ## 💎 Donate
