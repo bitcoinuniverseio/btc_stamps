@@ -1250,6 +1250,9 @@ def clear_zero_balances(db):
 
 
 class LedgerFetchStatus(Enum):
+    # No external validator is configured. Local consensus remains active;
+    # the optional Stampscan cross-check does not run.
+    DISABLED = "disabled"
     # Stampscan returned data for the exact requested block.
     OK = "ok"
     # Stampscan returned data for an earlier block (M < requested) — its
@@ -1266,6 +1269,11 @@ class LedgerFetchStatus(Enum):
 LedgerFetchResult = namedtuple("LedgerFetchResult", ["status", "hash", "validation"])
 
 
+def is_external_ledger_validation_enabled() -> bool:
+    """Return whether the optional Stampscan ledger cross-check can run."""
+    return bool(SRC_VALIDATION_SECRET_API2 and SRC_VALIDATION_API2)
+
+
 def fetch_api_ledger_data(block_index: int) -> "LedgerFetchResult":
     """Fetch the canonical SRC-20 ledger hash for ``block_index`` from stampscan.
 
@@ -1280,7 +1288,7 @@ def fetch_api_ledger_data(block_index: int) -> "LedgerFetchResult":
         urls.append(SRC_VALIDATION_API2.format(block_index=block_index, secret=SRC_VALIDATION_SECRET_API2))
 
     if not urls:
-        return LedgerFetchResult(LedgerFetchStatus.API_ERROR, None, None)
+        return LedgerFetchResult(LedgerFetchStatus.DISABLED, None, None)
 
     max_retries = 5
     backoff_time = 3
@@ -1427,6 +1435,9 @@ def validate_src20_ledger_hash(block_index: int, ledger_hash: str, valid_src20_s
         logger.debug(f"Local ledger hash: {ledger_hash}")
 
         result = fetch_api_ledger_data(block_index)
+
+        if result.status == LedgerFetchStatus.DISABLED:
+            return True
 
         if result.status == LedgerFetchStatus.OK:
             if result.hash == ledger_hash:

@@ -84,6 +84,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmpc-dev \
     libssl-dev \
     netcat-traditional \
+    zstd \
     && rm -rf /var/lib/apt/lists/*
 
 # Install dockerize (optional)

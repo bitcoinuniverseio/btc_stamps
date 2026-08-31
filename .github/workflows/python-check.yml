@@ -15,7 +15,7 @@ jobs:
   rust:
     name: Rust Checks
     runs-on: runs-on=${{ github.run_id }}-rust/runner=universe-hosted/cpu=2+8/env=production
-    if: (github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     env:
       USE_TEST_TX_HEX: '1'
       TESTING: '1'
@@ -104,7 +104,7 @@ jobs:
     name: Integration Tests
     runs-on: runs-on=${{ github.run_id }}-integration/runner=universe-hosted/cpu=2+8/env=production
     needs: rust
-    if: (github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     env:
       PYTHONPATH: ${{ github.workspace }}/indexer/src:${{ github.workspace }}/indexer
       USE_TEST_TX_HEX: '1'
@@ -157,7 +157,7 @@ jobs:
   python313-consensus-gate:
     name: Python 3.13 Consensus Divergence Gate
     runs-on: runs-on=${{ github.run_id }}-python313_consensus_gate/runner=universe-hosted/cpu=2+8/env=production
-    if: (github.event_name == 'pull_request' && (github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v5
       - name: Set up Python 3.13

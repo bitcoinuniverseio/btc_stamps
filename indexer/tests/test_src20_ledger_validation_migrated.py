@@ -68,16 +68,16 @@ class TestSrc20LedgerValidation:
         mock_get.assert_called()
 
     def test_fetch_api_ledger_data_retry_logic(self):
-        """With no API URLs configured, returns API_ERROR immediately."""
+        """With no external validator configured, report it as disabled."""
         with patch("index_core.src20.SRC_VALIDATION_API2", None):
             with patch("index_core.src20.SRC_VALIDATION_SECRET_API2", None):
                 result = fetch_api_ledger_data(1000)
-                assert result.status == LedgerFetchStatus.API_ERROR
+                assert result.status == LedgerFetchStatus.DISABLED
                 assert result.hash is None
                 assert result.validation is None
 
     def test_fetch_api_ledger_data_max_retries_exceeded(self):
-        """No API configured → API_ERROR; never mutates config.FORCE."""
+        """No validator configured leaves local consensus settings alone."""
         import config as global_config
 
         original_force = global_config.FORCE
@@ -86,7 +86,7 @@ class TestSrc20LedgerValidation:
             with patch("index_core.src20.SRC_VALIDATION_API2", None):
                 with patch("index_core.src20.SRC_VALIDATION_SECRET_API2", None):
                     result = fetch_api_ledger_data(1000)
-                    assert result.status == LedgerFetchStatus.API_ERROR
+                    assert result.status == LedgerFetchStatus.DISABLED
                     assert global_config.FORCE is False
         finally:
             global_config.FORCE = original_force
