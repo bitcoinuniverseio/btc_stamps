@@ -3,7 +3,11 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
-from index_core.src20 import LedgerFetchStatus, fetch_api_ledger_data
+from index_core.src20 import (
+    LedgerFetchStatus,
+    fetch_api_ledger_data,
+    is_external_ledger_validation_enabled,
+)
 from index_core.validation_queue import ValidationQueueManager
 
 logger = logging.getLogger(__name__)
@@ -76,13 +80,11 @@ class BackgroundValidator:
     def _should_run_validation(self) -> bool:
         """Check if we should attempt validation.
 
-        Stampscan availability is now determined per-request via the
-        ``LedgerFetchStatus`` returned by ``fetch_api_ledger_data``; the
-        legacy ``config.FORCE``-as-API-state signal has been removed.
-        Validation is always permitted at the queue level — individual
-        fetches deferred when stampscan can't authoritatively answer.
+        Do not poll a private external endpoint when it has no configured
+        secret. Local indexing and consensus checks do not depend on this
+        optional cross-check.
         """
-        return True
+        return is_external_ledger_validation_enabled()
 
     def _process_validations(self, pending_validations):
         """Process a batch of pending validations.
