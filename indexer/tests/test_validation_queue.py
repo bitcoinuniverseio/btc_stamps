@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import Mock, patch
 
 import pytest
+from requests.exceptions import RequestException
 
 from index_core.background_validator import BackgroundValidator
 from index_core.validation_queue import ValidationQueueManager
@@ -213,13 +214,17 @@ class TestBackgroundValidator:
         validator.queue_manager.get_pending_validations.assert_called()
 
     def test_should_run_validation(self, validator):
-        """Validation is always permitted at the queue level under #782.
-
-        Stampscan availability is now determined per-request via
-        ``LedgerFetchStatus``; the legacy ``config.FORCE`` gate has been
-        removed from ``_should_run_validation``.
-        """
-        assert validator._should_run_validation() is True
+        """The queue runs only when the external cross-check is configured."""
+        with patch(
+            "index_core.background_validator.is_external_ledger_validation_enabled",
+            return_value=True,
+        ):
+            assert validator._should_run_validation() is True
+        with patch(
+            "index_core.background_validator.is_external_ledger_validation_enabled",
+            return_value=False,
+        ):
+            assert validator._should_run_validation() is False
 
     @patch("index_core.background_validator.fetch_api_ledger_data")
     def test_process_validations_success(self, mock_fetch, validator):
@@ -314,6 +319,17 @@ class TestSrc20Integration:
 
     @patch("index_core.validation_queue.ValidationQueueManager")
     @patch("index_core.src20.fetch_api_ledger_data")
+    def test_disabled_validator_does_not_enqueue(self, mock_fetch, mock_queue_class):
+        """No private validator secret must not grow a queue that cannot drain."""
+        from index_core.src20 import LedgerFetchResult, LedgerFetchStatus, validate_src20_ledger_hash
+
+        mock_fetch.return_value = LedgerFetchResult(LedgerFetchStatus.DISABLED, None, None)
+
+        assert validate_src20_ledger_hash(906394, "local_hash", "test_data") is True
+        mock_queue_class.get_instance.assert_not_called()
+
+    @patch("index_core.validation_queue.ValidationQueueManager")
+    @patch("index_core.src20.fetch_api_ledger_data")
     def test_validate_block_index_mismatch_enqueues(self, mock_fetch, mock_queue_class):
         """Stampscan shadow response (block_index < requested) also defers."""
         from index_core.src20 import LedgerFetchResult, LedgerFetchStatus, validate_src20_ledger_hash
@@ -342,6 +358,8 @@ class TestSrc20Integration:
         mock_fetch.return_value = LedgerFetchResult(LedgerFetchStatus.OK, "same_hash", "balance_data")
         assert validate_src20_ledger_hash(906394, "same_hash", "src20_data") is True
 
+    @patch("index_core.src20.SRC_VALIDATION_API2", "https://test-api.com/{block_index}/{secret}")
+    @patch("index_core.src20.SRC_VALIDATION_SECRET_API2", "test-secret")
     @patch("index_core.src20.requests.get")
     def test_fetch_api_does_not_mutate_force(self, mock_get):
         """Even after max retries on API errors, fetch_api_ledger_data
@@ -353,7 +371,7 @@ class TestSrc20Integration:
         original_force = global_config.FORCE
         try:
             global_config.FORCE = False
-            mock_get.side_effect = Exception("boom")
+            mock_get.side_effect = RequestException("boom")
             result = fetch_api_ledger_data(123456)
             assert result.status == LedgerFetchStatus.API_ERROR
             assert global_config.FORCE is False
@@ -435,6 +453,7 @@ class TestValidatorThreadLifecycle:
 
         with patch.object(ValidationQueueManager, "get_instance", return_value=mock_queue_manager):
             validator = BackgroundValidator(check_interval=1)
+        validator._should_run_validation = Mock(return_value=True)
 
         def _run():
             loop = asyncio.new_event_loop()
