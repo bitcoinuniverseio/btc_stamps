@@ -4,6 +4,7 @@ import tempfile
 from unittest.mock import Mock, patch
 
 import pytest
+from requests.exceptions import RequestException
 
 from index_core.background_validator import BackgroundValidator
 from index_core.validation_queue import ValidationQueueManager
@@ -370,7 +371,7 @@ class TestSrc20Integration:
         original_force = global_config.FORCE
         try:
             global_config.FORCE = False
-            mock_get.side_effect = Exception("boom")
+            mock_get.side_effect = RequestException("boom")
             result = fetch_api_ledger_data(123456)
             assert result.status == LedgerFetchStatus.API_ERROR
             assert global_config.FORCE is False
@@ -452,6 +453,7 @@ class TestValidatorThreadLifecycle:
 
         with patch.object(ValidationQueueManager, "get_instance", return_value=mock_queue_manager):
             validator = BackgroundValidator(check_interval=1)
+        validator._should_run_validation = Mock(return_value=True)
 
         def _run():
             loop = asyncio.new_event_loop()
