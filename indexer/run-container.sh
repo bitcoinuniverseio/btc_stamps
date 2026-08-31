@@ -5,7 +5,7 @@
 # Usage: ./run-container.sh [OPTIONS]
 # Examples:
 #   Development: ./run-container.sh --build         # Build and run local dev image
-#   Production:  ./run-container.sh --image latest  # Run latest from Docker Hub
+#   Production:  ./run-container.sh --image latest  # Run the latest registry image
 
 # Set up environment
 cd "$(dirname "$0")"
@@ -18,9 +18,9 @@ NETWORK_MODE="host"
 COMPOSE_OPTS=""
 CLEANUP=false
 TEST_ONLY=false
-IMAGE_SOURCE="local"  # local, hub, custom
+IMAGE_SOURCE="local"  # local, registry, custom
 IMAGE_NAME="btcstamps/indexer:local-dev"  # Default for local development
-DOCKER_HUB_VERSION=""
+REGISTRY_VERSION=""
 CUSTOM_IMAGE=""
 ENV_FILE=".env.local"
 DEV_MODE="true"
@@ -38,7 +38,7 @@ show_help() {
     echo ""
     echo "Image options (choose one):"
     echo "  --build            Build local development image (default)"
-    echo "  --image VERSION    Pull specific version from Docker Hub (e.g., latest, dev, 1.8.26)"
+    echo "  --image VERSION    Pull a version from GitHub Container Registry (e.g., latest, edge, 1.8.26)"
     echo "  --custom-image IMG Use a custom Docker image"
     echo ""
     echo "Network options:"
@@ -53,7 +53,7 @@ show_help() {
     echo ""
     echo "Examples:"
     echo "  ./run-container.sh --build                # Build and run local dev image"
-    echo "  ./run-container.sh --image latest         # Run latest from Docker Hub"
+    echo "  ./run-container.sh --image latest         # Run the latest registry image"
     echo "  ./run-container.sh --image dev --prod     # Run dev version with stdout logs (best for testing)"
     echo "  ./run-container.sh --image 1.8.26 --prod  # Run specific version in prod mode"
     echo "  ./run-container.sh --custom-image my/img  # Run custom image"
@@ -128,7 +128,7 @@ while [[ "$#" -gt 0 ]]; do
         
         # Image options
         --build) IMAGE_SOURCE="local"; COMPOSE_OPTS="$COMPOSE_OPTS --build"; shift ;;
-        --image) IMAGE_SOURCE="hub"; DOCKER_HUB_VERSION="$2"; shift 2 ;;
+        --image) IMAGE_SOURCE="registry"; REGISTRY_VERSION="$2"; shift 2 ;;
         --custom-image) IMAGE_SOURCE="custom"; CUSTOM_IMAGE="$2"; shift 2 ;;
         
         # Network options
@@ -166,14 +166,14 @@ case $IMAGE_SOURCE in
         export CONTAINER_COMMAND=""
         echo "🏗️ Using local development image: $IMAGE_NAME"
         ;;
-    "hub")
-        if [ -z "$DOCKER_HUB_VERSION" ]; then
-            echo "❌ Error: No version specified for Docker Hub image"
+    "registry")
+        if [ -z "$REGISTRY_VERSION" ]; then
+            echo "❌ Error: No registry version specified"
             exit 1
         fi
-        IMAGE_NAME="btcstamps/indexer:$DOCKER_HUB_VERSION"
+        IMAGE_NAME="ghcr.io/bitcoinuniverseio/btc-stamps-indexer:$REGISTRY_VERSION"
         # Try to pull the image
-        echo "🔄 Pulling $IMAGE_NAME from Docker Hub..."
+        echo "🔄 Pulling $IMAGE_NAME from GitHub Container Registry..."
         if ! docker pull "$IMAGE_NAME"; then
             echo "❌ Failed to pull image $IMAGE_NAME"
             exit 1
@@ -257,4 +257,4 @@ if [[ $COMPOSE_OPTS =~ "--detach" ]]; then
     echo "✅ Container started in detached mode"
     echo "📋 To view logs: docker logs indexer-local-indexer-1 -f"
     echo "🛑 To stop: docker compose --env-file $ENV_FILE -f docker-compose.local.yml down"
-fi 
+fi
