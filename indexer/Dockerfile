@@ -25,7 +25,8 @@ RUN apk add --no-cache \
     linux-headers \
     mpfr-dev \
     mpc1-dev \
-    openssl-dev
+    openssl-dev \
+    patchelf
 
 # Install Rust
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && \
