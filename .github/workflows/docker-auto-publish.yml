@@ -16,6 +16,12 @@ name: Docker Auto-Publish
 # The old `dev` branch trigger is removed (dev is being archived).
 
 on:
+  pull_request:
+    paths:
+      - '.gitattributes'
+      - 'indexer/**'
+      - 'docker/**'
+      - '.github/workflows/docker-auto-publish.yml'
   push:
     branches:
       - main
@@ -93,6 +99,7 @@ jobs:
           fi
 
       - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -104,10 +111,17 @@ jobs:
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: ./indexer
-          push: true
+          push: ${{ github.event_name == 'push' }}
+          load: ${{ github.event_name == 'pull_request' }}
           tags: ${{ steps.set-tag.outputs.TAGS }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke-test Docker runtime
+        run: |
+          docker run --rm --entrypoint /bin/bash \
+            "${REGISTRY}/${IMAGE_NAME}:${{ steps.set-tag.outputs.PRIMARY_TAG }}" \
+            -c 'set -e; command -v mysql; command -v nc; command -v zstdcat; test -x /docker-entrypoint.sh; python -c "from btc_stamps_parser import FastTransactionParser; FastTransactionParser()"'
 
       # ---- Release supply-chain integrity (RELEASE path only) ----------------
       # Everything below is gated on IS_RELEASE == 'true', so main branch pushes
@@ -221,4 +235,13 @@ jobs:
           format: 'table'
           exit-code: '0'  # Don't fail the build, just report
           severity: 'HIGH,CRITICAL'
+          skip-files: 'app/bootstrap/srcbackground.csv,/usr/src/app/files/**'
+
+      - name: Block critical vulnerabilities
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.set-tag.outputs.PRIMARY_TAG }}'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL'
           skip-files: 'app/bootstrap/srcbackground.csv,/usr/src/app/files/**'
