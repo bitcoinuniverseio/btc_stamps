@@ -1,7 +1,7 @@
 # Build stage
 ARG PYTHON_VERSION=3.12
 ARG INSTALL_DEV=false
-FROM python:${PYTHON_VERSION}-slim AS builder
+FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
 
 # Build arguments
 ARG POETRY_VERSION=2.1.1
@@ -58,7 +58,7 @@ RUN ls -l target/wheels/
 RUN pip install target/wheels/*.whl
 
 # Runtime stage
-FROM python:${PYTHON_VERSION}-slim
+FROM python:${PYTHON_VERSION}-slim-bookworm
 
 ARG POETRY_VERSION=2.1.1
 # Re-declare in the runtime stage so ${PYTHON_VERSION} is usable in COPY paths below
@@ -76,31 +76,14 @@ WORKDIR /app
 # in-house MIME classifier in index_core/stamp_mime.py replaced
 # python-magic on the consensus path.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    default-libmysqlclient-dev \
     default-mysql-client \
-    libgmp-dev \
-    libmpfr-dev \
-    libmpc-dev \
-    libssl-dev \
+    libgmp10 \
+    libmpfr6 \
+    libmpc3 \
+    libssl3 \
     netcat-traditional \
     zstd \
     && rm -rf /var/lib/apt/lists/*
-
-# Install dockerize (optional)
-ARG TARGETARCH
-ENV ARCH=${TARGETARCH:-amd64} \
-    DOCKERIZE_VERSION=v0.7.0
-
-RUN case "${ARCH}" in \
-        "amd64")  DOCKERIZE_ARCH=amd64  ;; \
-        "arm64")  DOCKERIZE_ARCH=arm64  ;; \
-        "arm")    DOCKERIZE_ARCH=armhf  ;; \
-        *)        echo "Unsupported architecture: ${ARCH}" && exit 1  ;; \
-    esac && \
-    wget "https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-${DOCKERIZE_ARCH}-$DOCKERIZE_VERSION.tar.gz" && \
-    tar -C /usr/local/bin -xzvf "dockerize-linux-${DOCKERIZE_ARCH}-$DOCKERIZE_VERSION.tar.gz" && \
-    rm "dockerize-linux-${DOCKERIZE_ARCH}-$DOCKERIZE_VERSION.tar.gz"
 
 # Create the non-root user and own app dir
 RUN useradd -m indexer && \
@@ -128,4 +111,3 @@ USER indexer
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["poetry", "run", "indexer"]
-
