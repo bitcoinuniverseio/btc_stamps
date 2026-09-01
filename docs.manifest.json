@@ -4,7 +4,7 @@
   "name": "Bitcoin Stamps indexer",
   "classification": "implementation",
   "repository": "bitcoinuniverseio/btc_stamps",
-  "documentationUrl": "https://docs.bitcoinuniverse.io/infrastructure/btc-stamps/",
+  "documentationUrl": "https://docs.bitcoinuniverse.io/developers/interfaces/",
   "docsRoot": "docs",
   "sourceRef": "main",
   "lifecycle": "experimental",
