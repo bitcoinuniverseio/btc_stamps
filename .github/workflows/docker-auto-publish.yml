@@ -121,7 +121,7 @@ jobs:
         run: |
           docker run --rm --entrypoint /bin/bash \
             "${REGISTRY}/${IMAGE_NAME}:${{ steps.set-tag.outputs.PRIMARY_TAG }}" \
-            -c 'set -e; command -v mysql; command -v nc; command -v zstdcat; test -x /docker-entrypoint.sh; python -c "from btc_stamps_parser import FastTransactionParser; FastTransactionParser()"'
+            -c 'set -e; command -v mysql; command -v nc; command -v zstdcat; test -x /docker-entrypoint.sh; python -c "from bitcoin.wallet import CBitcoinAddress; from btc_stamps_parser import FastTransactionParser; FastTransactionParser()"'
           docker run --rm \
             "${REGISTRY}/${IMAGE_NAME}:${{ steps.set-tag.outputs.PRIMARY_TAG }}" \
             true
