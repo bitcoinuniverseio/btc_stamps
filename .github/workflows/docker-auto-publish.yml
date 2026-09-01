@@ -117,6 +117,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Smoke-test Docker runtime
+        run: |
+          docker run --rm --entrypoint /bin/bash \
+            "${REGISTRY}/${IMAGE_NAME}:${{ steps.set-tag.outputs.PRIMARY_TAG }}" \
+            -c 'set -e; command -v mysql; command -v nc; command -v zstdcat; test -x /docker-entrypoint.sh; python -c "from btc_stamps_parser import FastTransactionParser; FastTransactionParser()"'
+
       # ---- Release supply-chain integrity (RELEASE path only) ----------------
       # Everything below is gated on IS_RELEASE == 'true', so main branch pushes
       # (:edge / :sha-<short>) are untouched. We pin the release image by its
