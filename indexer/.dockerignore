@@ -56,8 +56,8 @@ poetry.toml
 tests/
 test_*
 
-# Bootstrap files - fetch from GitHub instead
-bootstrap/
+# Bootstrap CSVs are required during first-run schema setup. Keep them in the
+# image so startup does not depend on GitHub.
 
 # Documentation
 docs/
@@ -66,4 +66,4 @@ LICENSE
 
 # Developer scripts (keep tools/ for build scripts)
 scripts/
-# NOT ignoring tools/ directory as it contains required build scripts 
+# NOT ignoring tools/ directory as it contains required build scripts
