@@ -17,6 +17,7 @@
     }
   ],
   "protocols": [
+    "stamps",
     "src-20",
     "src-101"
   ],
@@ -26,6 +27,8 @@
     "protocol-implementer"
   ],
   "specifications": [
+    "docs/CONSENSUS.md",
+    "docs/PROTOCOLS.md",
     "docs/sips/SIP-0110/specification.md"
   ],
   "owners": [
@@ -39,8 +42,8 @@
     "divergenceSummary": "Bitcoin Stamps indexer run on Universe infrastructure. Upstream tags are the upstream project's release line."
   },
   "lastVerified": {
-    "commit": "1acd9825b0f1e0e145ace30c959b2167c44c1050",
-    "timestamp": "2026-09-01T02:00:00Z"
+    "commit": "4ee875d5f83bf7cfecd19caa350a7fd5b48fcd3a",
+    "timestamp": "2026-09-01T12:00:00Z"
   },
   "securityClassification": "public"
 }
