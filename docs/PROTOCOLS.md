@@ -5,6 +5,11 @@ This document details all protocols supported by the Bitcoin Stamps indexer, inc
 > **📖 For comprehensive protocol background and technical architecture, see the [Bitcoin Stamps Technical Whitepaper](./whitepaper/index.md).**
 > The whitepaper covers protocol history, UTXO permanence model, economic analysis, security guarantees, and future directions.
 
+> **⚖️ For the exact rules the indexer applies, see [CONSENSUS.md](./CONSENSUS.md).**
+> This document describes message shapes. CONSENSUS.md describes carrier encoding byte by byte,
+> carrier precedence, the clamping rules, the block hash model, and reorg behaviour. Where the
+> two disagree, CONSENSUS.md is traced line by line to the source and wins.
+
 ## Table of Contents
 
 1. [Common Concepts](#common-concepts)
@@ -46,12 +51,16 @@ been corrected to match these values.
 | SRC-20 OLGA / P2WSH encoding | `BTC_SRC20_OLGA_BLOCK` | 865000 |
 | SRC-101 genesis | `BTC_SRC101_GENESIS_BLOCK` | 870652 |
 | SRC-101 image-optional | `BTC_SRC101_IMG_OPTIONAL_BLOCK` | 872200 |
-| SRC-101 OLGA / P2WSH encoding (~March 2026) | `BTC_SRC101_OLGA_BLOCK` | 940000 |
+| SRC-101 P2WSH destination value recorded (~March 2026) | `BTC_SRC101_OLGA_BLOCK` | 940000 |
 
-> **OLGA is not a single height.** Classic Stamps adopted P2WSH/OLGA at block 833000
-> (`CP_P2WSH_FEAT_BLOCK_START`), SRC-20 at block 865000 (`BTC_SRC20_OLGA_BLOCK`), and
-> SRC-101 at block 940000 (`BTC_SRC101_OLGA_BLOCK`). Use the per-protocol constant — do
-> not assume one OLGA cutover applies to all protocols.
+> **OLGA is not a single height, and there are only two of them.** Classic Stamps adopted
+> P2WSH/OLGA at block 833000 (`CP_P2WSH_FEAT_BLOCK_START`). P2WSH data chunk collection for
+> direct Bitcoin transactions activates once, at block 865000 (`BTC_SRC20_OLGA_BLOCK`), and
+> applies to SRC-20 and SRC-101 alike.
+>
+> `BTC_SRC101_OLGA_BLOCK` (940000) is **not** an SRC-101 OLGA activation. It gates one thing
+> only: whether `ctx.vout[0].nValue` is recorded as the destination value on the P2WSH branch.
+> Verified in `process_vout` and `get_tx_info` in `index_core/transaction_utils.py`.
 
 ## Classic Stamps
 
@@ -127,10 +136,10 @@ Create a new token with its parameters.
 |-------|-------------|------------|
 | `p` | Protocol identifier | Must be "SRC-20" |
 | `op` | Operation type | Must be "deploy" |
-| `tick` | Token ticker | 1-5 characters from allowed set |
-| `max` | Maximum token supply | Integer > 0 |
-| `lim` | Per-mint limit | Integer > 0 and <= max |
-| `dec` | Decimal places | Integer 0-18 |
+| `tick` | Token ticker | 1 to 5 Unicode code points, every one drawn from the 1233-code-point allowlist (79 ASCII characters plus 1154 emoji). Five emoji is a valid ticker. See [CONSENSUS.md](./CONSENSUS.md#ticker-rules). |
+| `max` | Maximum token supply | `0 <= max <= 2**64 - 1`, quantized down to an integer |
+| `lim` | Per-mint limit | `0 <= lim <= 2**64 - 1`, quantized down to an integer. **Not** required to be <= max at deploy time; the effective limit at mint time is `min(lim, max)`. |
+| `dec` | Decimal places | Integer 0-18. Defaults to 18 when absent. |
 
 #### Mint
 
@@ -147,7 +156,14 @@ Create new token supply up to the limit per transaction.
 
 | Field | Description | Validation |
 |-------|-------------|------------|
-| `amt` | Amount to mint | Integer > 0 and <= lim |
+| `amt` | Amount to mint | `0 <= amt <= 2**64 - 1`, at most `dec` decimal places. An amount above the per-mint limit or above the remaining supply is **reduced, not rejected**. See below. |
+
+> **A mint above the limit is valid.** If `amt` exceeds the remaining supply the indexer emits
+> status `OMA` and reduces the amount to the remainder. If it then exceeds `min(lim, max)` the
+> indexer emits `ODL` and reduces it to that limit. Both records stay **valid**, with the
+> reduced amount credited. Only a mint against a token whose supply is already exhausted is
+> rejected, with status `OM`. This is the most frequently mis-specified rule in SRC-20; see
+> [CONSENSUS.md](./CONSENSUS.md#the-clamping-rule).
 
 #### Transfer
 
@@ -168,11 +184,23 @@ Send tokens to another address.
 
 ### Validation Rules
 
-- Token must be deployed before minting or transferring
-- Mint amount cannot exceed per-mint limit
-- Total minted cannot exceed max supply
-- Transfer amount cannot exceed sender's balance
-- Decimal places in amount cannot exceed specified decimal places
+- Token must be deployed before minting or transferring (status `ND` otherwise).
+- A second deploy of an existing ticker is rejected (status `DE`). First deploy wins.
+- Total minted cannot exceed max supply. A mint against an exhausted supply is rejected (`OM`).
+- A mint above the remaining supply or above the per-mint limit is **reduced and stays valid**
+  (`OMA`, `ODL`), not rejected.
+- Transfer amount cannot exceed the sender's balance. Transfers are **not** clamped: an
+  over-balance transfer is rejected outright (`BB`).
+- Decimal places in `amt` cannot exceed the deploy's `dec` (status `ID`).
+- Values in scientific notation exclude the transaction entirely.
+- Below block 833000, non-digit characters were stripped from numeric strings before parsing,
+  so `"1,000"` read as `1000` and `"-5"` read as `5`. From 833000 the string is parsed as-is and
+  a malformed value excludes the transaction.
+- `DEPLOY`, `MINT`, and `TRANSFER` are the only dispatched operations. Anything else, including
+  a bulk transfer payload, is recorded as `UO: UNSUPPORTED OP`.
+
+Full status code table, evaluation order, and per-height numeric parsing rules:
+[CONSENSUS.md](./CONSENSUS.md#src-20-rules).
 
 ### Example Transactions
 
@@ -293,22 +321,51 @@ Similar to SRC-721 but with additional code reference tracking.
 ## SRC-101 Domains
 
 SRC-101 is a domain name system native to Bitcoin Stamps. It activates at block 870652
-(`BTC_SRC101_GENESIS_BLOCK`); images become optional at block 872200
-(`BTC_SRC101_IMG_OPTIONAL_BLOCK`); and it adopts P2WSH/OLGA encoding at block 940000
-(`BTC_SRC101_OLGA_BLOCK`, ~March 2026).
+(`BTC_SRC101_GENESIS_BLOCK`) and the mint `img` key becomes optional at block 872200
+(`BTC_SRC101_IMG_OPTIONAL_BLOCK`).
+
+> **SRC-101 does not have its own OLGA activation.** P2WSH data chunk collection is gated once,
+> at block 865000 (`BTC_SRC20_OLGA_BLOCK`), and applies to SRC-101 as well. The constant
+> `BTC_SRC101_OLGA_BLOCK` (940000) gates only whether the destination output value is carried
+> into `destination_nvalue` on the P2WSH branch. Verified in `process_vout` and `get_tx_info`
+> in `indexer/src/index_core/transaction_utils.py`.
 
 ### Operations
 
-#### Register
+The live operations are `deploy`, `mint`, `transfer`, `setrecord`, and `renew`. There is no
+`reg` operation. Key sets are checked by exact match (symmetric difference must be empty), so
+an extra or missing key excludes the transaction. The one exception is `mint` at or above block
+872200, which accepts a superset.
+
+| Operation | Required keys | Match |
+|-----------|---------------|-------|
+| `deploy` | `p`, `root`, `op`, `name`, `lim`, `owner`, `rec`, `tick`, `pri`, `desc`, `mintstart`, `mintend`, `wla`, `imglp`, `imgf`, `idua` | exact |
+| `mint` (below 872200) | `p`, `op`, `hash`, `toaddress`, `tokenid`, `dua`, `prim`, `sig`, `img`, `coef` | exact |
+| `mint` (872200 and above) | same, without `img` | superset |
+| `transfer` | `p`, `op`, `hash`, `toaddress`, `tokenid` | exact |
+| `setrecord` | `p`, `op`, `hash`, `tokenid`, `type`, `data`, `prim` | exact |
+| `renew` | `p`, `op`, `hash`, `tokenid`, `dua` | exact |
+
+`tokenid` is always a **list** of base64-encoded name strings, so one transaction can carry
+several names. `img` is likewise a list.
+
+#### Mint
 
 ```json
 {
   "p": "SRC-101",
-  "op": "reg",
-  "name": "example",
-  "owner": "bc1q..."
+  "op": "mint",
+  "hash": "77fb147b72a551cf1e2f0b37dccf9982a1c25623a7fe8b4d5efaac566cf63fed",
+  "toaddress": "bc1q0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
+  "tokenid": ["MDAwMA=="],
+  "dua": 100000,
+  "prim": true,
+  "sig": "<hex ECDSA signature over the deploy wla key>",
+  "coef": 100
 }
 ```
+
+`hash` is the deploy transaction hash. `MDAwMA==` is base64 for `0000`.
 
 #### Transfer
 
@@ -316,8 +373,9 @@ SRC-101 is a domain name system native to Bitcoin Stamps. It activates at block 
 {
   "p": "SRC-101",
   "op": "transfer",
-  "name": "example",
-  "owner": "bc1q..."
+  "hash": "77fb147b72a551cf1e2f0b37dccf9982a1c25623a7fe8b4d5efaac566cf63fed",
+  "toaddress": "bc1q0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
+  "tokenid": ["MDAwMA=="]
 }
 ```
 
@@ -327,28 +385,35 @@ SRC-101 is a domain name system native to Bitcoin Stamps. It activates at block 
 {
   "p": "SRC-101",
   "op": "renew",
-  "name": "example"
+  "hash": "77fb147b72a551cf1e2f0b37dccf9982a1c25623a7fe8b4d5efaac566cf63fed",
+  "tokenid": ["MDAwMA=="],
+  "dua": 100000
 }
 ```
 
-| Field | Description | Validation |
-|-------|-------------|------------|
-| `p` | Protocol identifier | Must be "SRC-101" |
-| `op` | Operation type | Must be "reg", "transfer", or "renew" |
-| `name` | Domain name | Alphanumeric, 3-63 characters |
-| `owner` | Owner address | Valid Bitcoin address |
-
 ### Validation Rules
 
-- Domain name must follow format rules
-- Registration ownership rules apply
-- Domain must not be expired for transfers
-- Transfer must be initiated by current owner
+- Height must be at or above 870652, `keyburn` must be 1, and the payload must pass
+  `check_src101_inputs`.
+- Names are validated against the deploy's rules; ownership and expiry are tracked per deploy
+  hash and token id.
+- A mint carrying a non-empty `sig` has it verified with ECDSA over SECP256K1 and SHA-256
+  against the **deploy's `wla` compressed public key**, over a JSON document of `hash`, `coef`,
+  `address`, `tokenid`, `dua` (retried without `tokenid`). A failure yields status `IRS` and
+  the mint is rejected. A valid signature sets the price coefficient.
+- The `eth_account` dependency is used only in `setrecord`, where it **recovers a signer
+  address** from a signature over the previous transaction hash. It does not verify the mint
+  signature.
+- `ADDRESS_REGEX` and `ETH_ADDRESS_REGEX` are declared in `src101.py` but never referenced. Do
+  not treat them as rules. Bitcoin address checks go through `check_valid_bitcoin_address` in
+  `index_core/util.py`.
 
 ### Implementation Details
 
-- Domain validation in `src101.py`
-- Ownership tracking in `database.py:update_src101_owners()`
+- Parsing and validation in `src101.py` (`check_src101_inputs`, `Src101Processor`)
+- Ownership tracking in `src101.py:update_src101_owners()`
+
+Full detail: [CONSENSUS.md](./CONSENSUS.md#src-101-rules).
 
 ## OLGA Format
 
@@ -373,12 +438,16 @@ OLGA uses P2WSH outputs to store data directly, as opposed to the older OP_MULTI
 
 ### Transition Points
 
-OLGA/P2WSH did not activate at one height for every protocol. Each protocol has its own
-constant in `config.py` (see [Protocol Activation Heights](#protocol-activation-heights)):
+OLGA/P2WSH did not activate at one height (see
+[Protocol Activation Heights](#protocol-activation-heights)):
 
 - **Classic Stamps**: block 833000 (`CP_P2WSH_FEAT_BLOCK_START`)
-- **SRC-20**: block 865000 (`BTC_SRC20_OLGA_BLOCK`)
-- **SRC-101**: block 940000 (`BTC_SRC101_OLGA_BLOCK`, ~March 2026)
+- **Direct Bitcoin transactions (SRC-20 and SRC-101)**: block 865000 (`BTC_SRC20_OLGA_BLOCK`).
+  This is the gate on P2WSH data chunk collection in `process_vout`, and it is not
+  protocol-specific despite the constant's name.
+
+There is no separate SRC-101 OLGA activation. `BTC_SRC101_OLGA_BLOCK` (940000) affects only the
+destination value recorded on the P2WSH branch.
 
 ## Transaction Sources
 
@@ -450,7 +519,7 @@ falling back to the Python path when the Rust parser is unavailable.
 
 ### 2. Per-transaction decode — `transaction_utils.get_tx_info`
 
-The canonical decode/classification routine is
+The authoritative decode and classification routine is
 [`get_tx_info(tx_hex, block_index=None, db=None, stamp_issuance=None)`](../indexer/src/index_core/transaction_utils.py)
 in `indexer/src/index_core/transaction_utils.py`. This is the real path that extracts
 source/destination, data payload, keyburn, and OLGA/OP_MULTISIG encoding from a raw
