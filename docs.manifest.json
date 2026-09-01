@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "id": "btc-stamps",
+  "name": "Bitcoin Stamps indexer",
+  "classification": "implementation",
+  "repository": "bitcoinuniverseio/btc_stamps",
+  "documentationUrl": "https://docs.bitcoinuniverse.io/infrastructure/btc-stamps/",
+  "docsRoot": "docs",
+  "sourceRef": "main",
+  "lifecycle": "experimental",
+  "chains": [
+    {
+      "chain": "bitcoin",
+      "networks": [
+        "mainnet"
+      ]
+    }
+  ],
+  "protocols": [
+    "src-20",
+    "src-101"
+  ],
+  "audiences": [
+    "indexer-operator",
+    "app-developer",
+    "protocol-implementer"
+  ],
+  "specifications": [
+    "docs/sips/SIP-0110/specification.md"
+  ],
+  "owners": [
+    "bitcoinuniverseio"
+  ],
+  "upstream": {
+    "project": "stampchain-io/btc_stamps",
+    "url": "https://github.com/stampchain-io/btc_stamps",
+    "license": "AGPL-3.0",
+    "relationship": "fork",
+    "divergenceSummary": "Bitcoin Stamps indexer run on Universe infrastructure. Upstream tags are the upstream project's release line."
+  },
+  "lastVerified": {
+    "commit": "1acd9825b0f1e0e145ace30c959b2167c44c1050",
+    "timestamp": "2026-09-01T02:00:00Z"
+  },
+  "securityClassification": "public"
+}
