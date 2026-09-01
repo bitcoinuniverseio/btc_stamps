@@ -222,6 +222,27 @@ def test_maybe_import_runs_full_flow_on_empty_db(monkeypatch, tmp_path):
     ):
         assert bootstrap_importer.maybe_import(db) is True
         mock_import.assert_called_once_with(str(f))
+        db.rollback.assert_called_once_with()
+
+
+def test_maybe_import_refreshes_transaction_before_checkpoint_query(monkeypatch, tmp_path):
+    f = tmp_path / "bootstrap.sql.zst"
+    f.write_bytes(b"x" * 2048)
+    monkeypatch.setenv("BOOTSTRAP_ON_EMPTY", "true")
+    monkeypatch.setenv("BOOTSTRAP_FILE", str(f))
+
+    db = _mock_db_with_cursor([(0,)])
+
+    def verify_after_rollback(connection):
+        connection.rollback.assert_called_once_with()
+        return 1, 790000
+
+    with patch.object(bootstrap_importer, "_import_sql"), patch.object(
+        bootstrap_importer,
+        "_verify_against_checkpoints",
+        side_effect=verify_after_rollback,
+    ):
+        assert bootstrap_importer.maybe_import(db) is True
 
 
 # -----------------------------------------------------------------------------

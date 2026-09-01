@@ -194,6 +194,15 @@ def maybe_import(db: Connection) -> bool:
     _validate_bootstrap_file(bootstrap_file)
     _import_sql(bootstrap_file)
 
+    # _is_db_empty() starts a transaction because indexer connections do not
+    # use autocommit. The mysql subprocess changes the schema on another
+    # connection. End the old read transaction before querying imported tables,
+    # or MySQL can reject the first checkpoint query with error 1412.
+    try:
+        db.rollback()
+    except MySQLError as e:
+        raise BootstrapError(f"could not refresh DB session after import: {e}") from e
+
     checked, max_block = _verify_against_checkpoints(db)
     logger.warning(
         f"bootstrap_importer: validated {checked} checkpoints against imported state "
