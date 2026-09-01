@@ -121,7 +121,7 @@ jobs:
         run: |
           docker run --rm --entrypoint /bin/bash \
             "${REGISTRY}/${IMAGE_NAME}:${{ steps.set-tag.outputs.PRIMARY_TAG }}" \
-            -c 'set -e; command -v mysql; command -v nc; command -v zstdcat; test -x /docker-entrypoint.sh; python -c "from btc_stamps_parser import FastTransactionParser; FastTransactionParser()"'
+            -c 'set -e; command -v mysql; command -v nc; command -v zstdcat; test -x /docker-entrypoint.sh; python -c "from btc_stamps_parser import FastTransactionParser; from index_core.util import decode_address; FastTransactionParser(); assert decode_address(bytes.fromhex(\"76a91477bff20c60e522dfaa3350c39b030a5d004e839a88ac\")) == \"1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2\""'
           docker run --rm \
             "${REGISTRY}/${IMAGE_NAME}:${{ steps.set-tag.outputs.PRIMARY_TAG }}" \
             true
