@@ -122,6 +122,9 @@ jobs:
           docker run --rm --entrypoint /bin/bash \
             "${REGISTRY}/${IMAGE_NAME}:${{ steps.set-tag.outputs.PRIMARY_TAG }}" \
             -c 'set -e; command -v mysql; command -v nc; command -v zstdcat; test -x /docker-entrypoint.sh; python -c "from btc_stamps_parser import FastTransactionParser; FastTransactionParser()"'
+          docker run --rm \
+            "${REGISTRY}/${IMAGE_NAME}:${{ steps.set-tag.outputs.PRIMARY_TAG }}" \
+            true
 
       # ---- Release supply-chain integrity (RELEASE path only) ----------------
       # Everything below is gated on IS_RELEASE == 'true', so main branch pushes
