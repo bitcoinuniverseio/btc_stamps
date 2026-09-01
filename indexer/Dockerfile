@@ -1,7 +1,7 @@
 # Build stage
 ARG PYTHON_VERSION=3.12
 ARG INSTALL_DEV=false
-FROM python:${PYTHON_VERSION}-slim AS builder
+FROM python:${PYTHON_VERSION}-alpine3.22 AS builder
 
 # Build arguments
 ARG POETRY_VERSION=2.1.1
@@ -17,15 +17,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VIRTUALENVS_CREATE=false
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+RUN apk add --no-cache \
+    build-base \
     curl \
     wget \
-    libgmp-dev \
-    libmpfr-dev \
-    libmpc-dev \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    gmp-dev \
+    linux-headers \
+    mpfr-dev \
+    mpc1-dev \
+    openssl-dev \
+    patchelf
 
 # Install Rust
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && \
@@ -58,7 +59,7 @@ RUN ls -l target/wheels/
 RUN pip install target/wheels/*.whl
 
 # Runtime stage
-FROM python:${PYTHON_VERSION}-slim
+FROM python:${PYTHON_VERSION}-alpine3.22
 
 ARG POETRY_VERSION=2.1.1
 # Re-declare in the runtime stage so ${PYTHON_VERSION} is usable in COPY paths below
@@ -75,35 +76,20 @@ WORKDIR /app
 # Install system/runtime dependencies. libmagic was removed when the
 # in-house MIME classifier in index_core/stamp_mime.py replaced
 # python-magic on the consensus path.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    default-libmysqlclient-dev \
-    default-mysql-client \
-    libgmp-dev \
-    libmpfr-dev \
-    libmpc-dev \
-    libssl-dev \
-    netcat-traditional \
-    zstd \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install dockerize (optional)
-ARG TARGETARCH
-ENV ARCH=${TARGETARCH:-amd64} \
-    DOCKERIZE_VERSION=v0.7.0
-
-RUN case "${ARCH}" in \
-        "amd64")  DOCKERIZE_ARCH=amd64  ;; \
-        "arm64")  DOCKERIZE_ARCH=arm64  ;; \
-        "arm")    DOCKERIZE_ARCH=armhf  ;; \
-        *)        echo "Unsupported architecture: ${ARCH}" && exit 1  ;; \
-    esac && \
-    wget "https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-${DOCKERIZE_ARCH}-$DOCKERIZE_VERSION.tar.gz" && \
-    tar -C /usr/local/bin -xzvf "dockerize-linux-${DOCKERIZE_ARCH}-$DOCKERIZE_VERSION.tar.gz" && \
-    rm "dockerize-linux-${DOCKERIZE_ARCH}-$DOCKERIZE_VERSION.tar.gz"
+RUN apk add --no-cache \
+    bash \
+    mariadb-client \
+    gmp \
+    mpfr \
+    mpc1 \
+    libssl3 \
+    libgcc \
+    libstdc++ \
+    netcat-openbsd \
+    zstd
 
 # Create the non-root user and own app dir
-RUN useradd -m indexer && \
+RUN adduser -D indexer && \
     mkdir -p /app && \
     chown -R indexer:indexer /app
 
@@ -128,4 +114,3 @@ USER indexer
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["poetry", "run", "indexer"]
-
