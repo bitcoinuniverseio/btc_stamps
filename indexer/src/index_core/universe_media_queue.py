@@ -4,8 +4,10 @@ import hashlib
 import os
 import sqlite3
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterator
 
 
 @dataclass(frozen=True)
@@ -34,8 +36,17 @@ class UniverseMediaQueue:
         connection.execute("PRAGMA busy_timeout=30000")
         return connection
 
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        connection = self._connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute("""
                 CREATE TABLE IF NOT EXISTS media_jobs (
                   job_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +103,7 @@ class UniverseMediaQueue:
                 except FileNotFoundError:
                     pass
         now = time.time()
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO media_jobs
@@ -119,7 +130,7 @@ class UniverseMediaQueue:
         return int(row[0])
 
     def pending_ids(self, limit: int = 100_000) -> list[int]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(
                 """
                 SELECT job_id FROM media_jobs
@@ -162,14 +173,14 @@ class UniverseMediaQueue:
             connection.close()
 
     def complete(self, job_id: int) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 "UPDATE media_jobs SET status='completed',last_error=NULL,updated_at=? WHERE job_id=?",
                 (time.time(), job_id),
             )
 
     def fail(self, job_id: int, message: str) -> bool:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute("SELECT attempts FROM media_jobs WHERE job_id=?", (job_id,)).fetchone()
             if not row:
                 return False
@@ -193,7 +204,7 @@ class UniverseMediaQueue:
         return not terminal
 
     def health(self) -> dict:
-        with self._connect() as connection:
+        with self._connection() as connection:
             counts = {
                 str(row[0]): int(row[1])
                 for row in connection.execute("SELECT status,COUNT(*) FROM media_jobs GROUP BY status").fetchall()
@@ -235,7 +246,7 @@ class UniverseMediaQueue:
         }
 
     def backfill_source(self, source_name: str) -> dict | None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """
                 SELECT source_name,cursor_value,high_watermark,scanned,enqueued,
@@ -273,7 +284,7 @@ class UniverseMediaQueue:
     ) -> None:
         if status not in {"pending", "running", "complete", "error"}:
             raise ValueError("Invalid Universe media backfill status")
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO media_backfill_sources
