@@ -17,14 +17,6 @@ debug_info() {
     fi
 }
 
-# Only for Alpine-based containers (if using apk)
-install_openssl_libs() {
-    if [ -f /etc/alpine-release ]; then
-        echo "Installing additional OpenSSL libraries..."
-        apk add --no-cache libssl3 libcrypto3 || true
-    fi
-}
-
 # Wait for MySQL (only in Dockerized mode)
 wait_for_mysql_if_needed() {
     if [ "$DOCKER_CONTAINER" = "1" ] && [ -x /app/wait-for-mysql.sh ]; then
@@ -41,7 +33,6 @@ prepare_logs() {
 }
 
 # Main setup
-install_openssl_libs
 wait_for_mysql_if_needed
 prepare_logs
 debug_info
