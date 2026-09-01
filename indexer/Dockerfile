@@ -1,9 +1,7 @@
 # Build stage
 ARG PYTHON_VERSION=3.12
 ARG INSTALL_DEV=false
-# python-bitcoinlib 0.12.2 still imports OpenSSL big-number symbols that
-# Alpine 3.22 removed. Alpine 3.21 remains supported and exports them.
-FROM python:${PYTHON_VERSION}-alpine3.21 AS builder
+FROM python:${PYTHON_VERSION}-alpine3.22 AS builder
 
 # Build arguments
 ARG POETRY_VERSION=2.1.1
@@ -61,7 +59,7 @@ RUN ls -l target/wheels/
 RUN pip install target/wheels/*.whl
 
 # Runtime stage
-FROM python:${PYTHON_VERSION}-alpine3.21
+FROM python:${PYTHON_VERSION}-alpine3.22
 
 ARG POETRY_VERSION=2.1.1
 # Re-declare in the runtime stage so ${PYTHON_VERSION} is usable in COPY paths below

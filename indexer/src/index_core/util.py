@@ -9,13 +9,6 @@ import unicodedata
 from binascii import unhexlify
 from typing import Optional
 
-try:
-    from bitcoin.wallet import CBitcoinAddress
-except ImportError:
-    # For test environments without real bitcoin library
-    def CBitcoinAddress(addr):
-        return addr
-
 
 try:
     from bitcoinlib import encoding
@@ -29,6 +22,10 @@ except ImportError:
         @staticmethod
         def addr_base58_to_pubkeyhash(addr):
             return None
+
+        @staticmethod
+        def pubkeyhash_to_addr(*args, **kwargs):
+            raise ImportError("bitcoinlib.encoding is not available")
 
     encoding = _StubEncoding
 
@@ -430,20 +427,42 @@ def decode_address(script_pubkey):
         return cached_result
 
     try:
-        # Handle Taproot (P2TR)
-        if len(script_pubkey) == 34 and script_pubkey[0] == 0x51:
-            witness_program = script_pubkey[2:]
-            # Maintain existing network-specific behavior
-            if config.TESTNET:
-                address = encoding.pubkeyhash_to_addr(witness_program, prefix="tb", encoding="bech32", witver=1)
-            else:
-                address = encoding.pubkeyhash_to_addr(witness_program, prefix="bc", encoding="bech32", witver=1)
+        script = bytes(script_pubkey)
+        network_prefix = "tb" if config.TESTNET else "bc"
+
+        if len(script) == 25 and script[:3] == b"\x76\xa9\x14" and script[-2:] == b"\x88\xac":
+            address = _base58check_address(script[3:23], 0x6F if config.TESTNET else 0x00)
+        elif len(script) == 23 and script[:2] == b"\xa9\x14" and script[-1:] == b"\x87":
+            address = _base58check_address(script[2:22], 0xC4 if config.TESTNET else 0x05)
+        elif len(script) in (22, 34) and script[0] == 0x00 and script[1] == len(script) - 2:
+            address = encoding.pubkeyhash_to_addr(
+                script[2:], prefix=network_prefix, encoding="bech32", witver=0
+            )
+        elif len(script) == 34 and script[:2] == b"\x51\x20":
+            address = encoding.pubkeyhash_to_addr(
+                script[2:], prefix=network_prefix, encoding="bech32", witver=1
+            )
+        elif len(script) in (35, 67) and script[0] == len(script) - 2 and script[-1:] == b"\xac":
+            pubkey_hash = hashlib.new("ripemd160", hashlib.sha256(script[1:-1]).digest()).digest()
+            address = _base58check_address(pubkey_hash, 0x6F if config.TESTNET else 0x00)
         else:
-            # Handle all other address types using bitcoin-core's native implementation
-            address = str(CBitcoinAddress.from_scriptPubKey(script_pubkey))
+            raise ValueError("Unsupported scriptPubKey format")
 
         # Cache the result
         cache_manager.set_cache_value("address", cache_key, address)
         return address
     except Exception:
         raise ValueError("Unsupported scriptPubKey format")
+
+
+def _base58check_address(payload: bytes, version: int) -> str:
+    data = bytes([version]) + payload
+    encoded = data + hashlib.sha256(hashlib.sha256(data).digest()).digest()[:4]
+    value = int.from_bytes(encoded, "big")
+    alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    result = ""
+    while value:
+        value, remainder = divmod(value, 58)
+        result = alphabet[remainder] + result
+    leading_zeroes = len(encoded) - len(encoded.lstrip(b"\x00"))
+    return "1" * leading_zeroes + result
