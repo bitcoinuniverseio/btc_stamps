@@ -1,4 +1,5 @@
 import hashlib
+import sqlite3
 from pathlib import Path
 
 from index_core.universe_media_queue import UniverseMediaQueue
@@ -77,3 +78,28 @@ def test_queue_tracks_backfill_source_readiness(tmp_path):
         status="complete",
     )
     assert queue.health()["ready"] is True
+
+
+def test_queue_closes_short_lived_connections(tmp_path, monkeypatch):
+    queue = UniverseMediaQueue(str(tmp_path))
+    opened = []
+    connect = queue._connect
+
+    def tracked_connect():
+        connection = connect()
+        opened.append(connection)
+        return connection
+
+    monkeypatch.setattr(queue, "_connect", tracked_connect)
+
+    for _ in range(20):
+        assert queue.pending_ids() == []
+
+    assert len(opened) == 20
+    for connection in opened:
+        try:
+            connection.execute("SELECT 1")
+        except sqlite3.ProgrammingError as error:
+            assert "closed" in str(error).lower()
+        else:
+            raise AssertionError("Universe media queue left a SQLite connection open")
