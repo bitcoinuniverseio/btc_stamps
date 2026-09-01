@@ -77,6 +77,7 @@ WORKDIR /app
 # in-house MIME classifier in index_core/stamp_mime.py replaced
 # python-magic on the consensus path.
 RUN apk add --no-cache \
+    bash \
     mariadb-client \
     gmp \
     mpfr \
