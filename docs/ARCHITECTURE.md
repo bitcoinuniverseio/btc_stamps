@@ -1,5 +1,8 @@
 # Bitcoin Stamps Architecture
 
+This document maps the components. For the rules those components apply, see
+[CONSENSUS.md](./CONSENSUS.md). For the full documentation index, see [README.md](./README.md).
+
 ## System Overview
 
 Bitcoin Stamps is a meta-protocol indexer that processes Bitcoin blockchain data to identify and validate various token formats (Classic Stamps, SRC-20, SRC-721, OLGA, SRC-721r, and SRC-101). The system consists of several key components working together:
@@ -20,13 +23,12 @@ flowchart TD
     ProtocolHandler --> DatabaseWriter[Database Writer]
     end
 
-    subgraph WebInterfacez
+    subgraph WebInterface
     APIEndpoints[API Endpoints] --> Database
     UIComponents[UI Components] --> APIEndpoints
     end
 
     Indexer --> Database[(MySQL Database)]
-    WebInterface --> Database
 ```
 
 ## Core Components
@@ -91,10 +93,13 @@ flowchart TD
 - Background orchestration: `background_coordinator.py`, `background_validator.py`,
   `validation_queue.py`, `reprocessing_queue.py`
 
-### 9. Web Interface at https://github.com/stampchain-io/BTCStampsExplorer
-- Deno/Fresh implementation
-- REST API for protocol data
+### 9. Web Interface
+- Deno/Fresh implementation, in a separate repository:
+  [bitcoinuniverseio/stampchain.io](https://github.com/bitcoinuniverseio/stampchain.io)
+  (upstream: [stampchain-io/BTCStampsExplorer](https://github.com/stampchain-io/BTCStampsExplorer))
+- REST API for protocol data, described by `schema.yml` in that repository
 - User interface for exploration
+- Reads the database this indexer writes. It does not participate in consensus.
 
 ## Data Flow
 
