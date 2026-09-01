@@ -817,7 +817,7 @@ LEGACY_COLLECTIONS: List[Dict[str, Union[str, List[str], List[int], Optional[boo
 
 # Bootstrap file GitHub URLs - allows loading bootstrap data directly from GitHub
 BOOTSTRAP_GITHUB_BASE_URL = os.environ.get(
-    "BOOTSTRAP_GITHUB_BASE_URL", "https://raw.githubusercontent.com/stampchain-io/btc_stamps/dev/indexer/bootstrap"
+    "BOOTSTRAP_GITHUB_BASE_URL", "https://raw.githubusercontent.com/stampchain-io/btc_stamps/main/indexer/bootstrap"
 )
 BOOTSTRAP_CREATOR_CSV_URL = os.environ.get("BOOTSTRAP_CREATOR_CSV_URL", f"{BOOTSTRAP_GITHUB_BASE_URL}/creator.csv")
 BOOTSTRAP_SRCBACKGROUND_CSV_URL = os.environ.get(
