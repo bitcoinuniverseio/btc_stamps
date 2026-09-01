@@ -22,6 +22,7 @@ RUN apk add --no-cache \
     curl \
     wget \
     gmp-dev \
+    linux-headers \
     mpfr-dev \
     mpc1-dev \
     openssl-dev
