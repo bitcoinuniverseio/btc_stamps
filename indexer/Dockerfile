@@ -1,7 +1,7 @@
 # Build stage
 ARG PYTHON_VERSION=3.12
 ARG INSTALL_DEV=false
-FROM python:${PYTHON_VERSION}-slim-bookworm AS builder
+FROM python:${PYTHON_VERSION}-alpine3.22 AS builder
 
 # Build arguments
 ARG POETRY_VERSION=2.1.1
@@ -17,15 +17,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     POETRY_VIRTUALENVS_CREATE=false
 
 # Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+RUN apk add --no-cache \
+    build-base \
     curl \
     wget \
-    libgmp-dev \
-    libmpfr-dev \
-    libmpc-dev \
-    libssl-dev \
-    && rm -rf /var/lib/apt/lists/*
+    gmp-dev \
+    mpfr-dev \
+    mpc1-dev \
+    openssl-dev
 
 # Install Rust
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && \
@@ -58,7 +57,7 @@ RUN ls -l target/wheels/
 RUN pip install target/wheels/*.whl
 
 # Runtime stage
-FROM python:${PYTHON_VERSION}-slim-bookworm
+FROM python:${PYTHON_VERSION}-alpine3.22
 
 ARG POETRY_VERSION=2.1.1
 # Re-declare in the runtime stage so ${PYTHON_VERSION} is usable in COPY paths below
@@ -75,18 +74,19 @@ WORKDIR /app
 # Install system/runtime dependencies. libmagic was removed when the
 # in-house MIME classifier in index_core/stamp_mime.py replaced
 # python-magic on the consensus path.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    default-mysql-client \
-    libgmp10 \
-    libmpfr6 \
-    libmpc3 \
+RUN apk add --no-cache \
+    mariadb-client \
+    gmp \
+    mpfr \
+    mpc1 \
     libssl3 \
-    netcat-traditional \
-    zstd \
-    && rm -rf /var/lib/apt/lists/*
+    libgcc \
+    libstdc++ \
+    netcat-openbsd \
+    zstd
 
 # Create the non-root user and own app dir
-RUN useradd -m indexer && \
+RUN adduser -D indexer && \
     mkdir -p /app && \
     chown -R indexer:indexer /app
 
