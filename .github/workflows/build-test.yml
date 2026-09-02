@@ -13,14 +13,20 @@ on:
         value: ${{ jobs.test-build.outputs.status }}
 
 jobs:
+  route:
+    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    secrets: inherit
+    with:
+      plan: '{"test_build":"light"}'
+
   build:
     uses: ./.github/workflows/setup-python.yml
     with:
       python-version: '3.10'
 
   test-build:
-    needs: build
-    runs-on: runs-on=${{ github.run_id }}-test_build/runner=universe-hosted/cpu=2+8/env=production
+    needs: [route, build]
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).test_build }}
     outputs:
       status: ${{ steps.test.outputs.test_status }}
 
