@@ -18,10 +18,11 @@ on:
 
 jobs:
   route:
-    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    uses: ./.github/workflows/route.yml
     secrets: inherit
     with:
       plan: '{"version_check":"light"}'
+      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
 
   version-check:
     needs: route
