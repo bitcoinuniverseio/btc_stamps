@@ -45,10 +45,11 @@ permissions:
 
 jobs:
   route:
-    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    uses: ./.github/workflows/route.yml
     secrets: inherit
     with:
       plan: '{"changes":"light","reparse_validate":"light","reparse_validate_gate":"light"}'
+      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
 
   # Detect whether consensus-surface files changed. Keeps the heavy reparse off
   # unrelated PRs while the workflow still runs (so the gate reports).
