@@ -30,8 +30,15 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  route:
+    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    secrets: inherit
+    with:
+      plan: '{"label":"light"}'
+
   label:
-    runs-on: runs-on=${{ github.run_id }}-label/runner=universe-hosted/cpu=2+8/env=production
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).label }}
     steps:
       # No checkout of PR code. Metadata + labels API only.
       - name: Evaluate PR and apply consensus label
