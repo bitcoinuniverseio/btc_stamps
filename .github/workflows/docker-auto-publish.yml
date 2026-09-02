@@ -37,8 +37,15 @@ on:
       - '.github/workflows/docker-auto-publish.yml'
 
 jobs:
+  route:
+    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    secrets: inherit
+    with:
+      plan: '{"build_and_push":"docker"}'
+
   build_and_push:
-    runs-on: runs-on=${{ github.run_id }}-build_and_push/runner=universe-hosted/cpu=2+8/env=production
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).build_and_push }}
     env:
       REGISTRY: ghcr.io
       IMAGE_NAME: bitcoinuniverseio/btc-stamps-indexer
