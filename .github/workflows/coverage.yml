@@ -8,9 +8,16 @@ on:
   workflow_dispatch:
 
 jobs:
+  route:
+    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    secrets: inherit
+    with:
+      plan: '{"coverage":"light"}'
+
   coverage:
+    needs: route
     name: Code Coverage Analysis
-    runs-on: runs-on=${{ github.run_id }}-coverage/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).coverage }}
     # Only run coverage on PRs to a release branch or by manual dispatch.
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/dev'))
     

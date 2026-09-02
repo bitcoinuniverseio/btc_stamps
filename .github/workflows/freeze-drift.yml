@@ -29,11 +29,18 @@ permissions:
   pull-requests: write
 
 jobs:
+  route:
+    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    secrets: inherit
+    with:
+      plan: '{"changes":"light","freeze_drift":"docker","freeze_drift_gate":"light"}'
+
   # Detect whether freeze-relevant files changed. Keeps the heavy Docker build
   # off unrelated PRs while the workflow still runs (so the gate reports).
   changes:
+    needs: route
     name: Detect freeze-relevant changes
-    runs-on: runs-on=${{ github.run_id }}-changes/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).changes }}
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
@@ -57,10 +64,10 @@ jobs:
 
   freeze-drift:
     name: Freeze Drift Check
-    needs: changes
+    needs: [route, changes]
     # Heavy Docker build only when freeze-relevant files change (or a manual run).
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.freeze == 'true'
-    runs-on: runs-on=${{ github.run_id }}-freeze_drift/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).freeze_drift }}
     steps:
       - uses: actions/checkout@v5
 
@@ -162,9 +169,9 @@ jobs:
   # (freeze-irrelevant PR); red only when freeze-drift actually failed/cancelled.
   freeze-drift-gate:
     name: Freeze Drift Gate
-    needs: [changes, freeze-drift]
+    needs: [route, changes, freeze-drift]
     if: always()
-    runs-on: runs-on=${{ github.run_id }}-freeze_drift_gate/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).freeze_drift_gate }}
     steps:
       - name: Resolve gate from freeze-drift result
         env:

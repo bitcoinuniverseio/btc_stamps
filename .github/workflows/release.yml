@@ -64,10 +64,17 @@ env:
   GIT_USER_EMAIL: action@github.com
 
 jobs:
+  route:
+    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    secrets: inherit
+    with:
+      plan: '{"prepare":"light","finalize":"light"}'
+
   # Manual trigger: open the release PR to main and let it auto-merge.
   prepare:
+    needs: route
     if: github.event_name == 'workflow_dispatch'
-    runs-on: runs-on=${{ github.run_id }}-prepare/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).prepare }}
     permissions:
       contents: write
       pull-requests: write
@@ -156,12 +163,13 @@ jobs:
 
   # Runs when a release/* PR is merged into main: tag + publish the release.
   finalize:
+    needs: route
     if: >-
       github.event_name == 'pull_request'
       && github.event.pull_request.merged == true
       && github.event.pull_request.base.ref == 'main'
       && startsWith(github.event.pull_request.head.ref, 'release/')
-    runs-on: runs-on=${{ github.run_id }}-finalize/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).finalize }}
     permissions:
       contents: write
       pull-requests: write

@@ -17,8 +17,15 @@ on:
       - main
 
 jobs:
+  route:
+    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    secrets: inherit
+    with:
+      plan: '{"version_check":"light"}'
+
   version-check:
-    runs-on: runs-on=${{ github.run_id }}-version_check/runner=universe-hosted/cpu=2+8/env=production
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).version_check }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

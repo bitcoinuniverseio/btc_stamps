@@ -8,8 +8,15 @@ on:
         type: string
 
 jobs:
+  route:
+    uses: bitcoinuniverseio/.github-private/.github/workflows/route.yml@develop
+    secrets: inherit
+    with:
+      plan: '{"setup":"light"}'
+
   setup:
-    runs-on: runs-on=${{ github.run_id }}-setup/runner=universe-hosted/cpu=2+8/env=production
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.targets).setup }}
     outputs:
       cache-hit: ${{ steps.cache-poetry.outputs.cache-hit }}
     steps:
