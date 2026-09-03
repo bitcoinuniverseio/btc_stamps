@@ -38,7 +38,7 @@ on:
 
 jobs:
   build_and_push:
-    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-medium]
+    runs-on: [self-hosted, linux, x64, universe-linux]
     env:
       REGISTRY: ghcr.io
       IMAGE_NAME: bitcoinuniverseio/btc-stamps-indexer
