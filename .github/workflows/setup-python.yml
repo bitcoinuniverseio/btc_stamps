@@ -8,16 +8,8 @@ on:
         type: string
 
 jobs:
-  route:
-    uses: ./.github/workflows/route.yml
-    secrets: inherit
-    with:
-      plan: '{"setup":"light"}'
-      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
-
   setup:
-    needs: route
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).setup }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     outputs:
       cache-hit: ${{ steps.cache-poetry.outputs.cache-hit }}
     steps:

@@ -11,21 +11,13 @@ on:
     types: [submitted]
 
 jobs:
-  route:
-    uses: ./.github/workflows/route.yml
-    secrets: inherit
-    with:
-      plan: '{"claude":"light"}'
-      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
-
   claude:
-    needs: route
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).claude }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     permissions:
       contents: read
       pull-requests: read

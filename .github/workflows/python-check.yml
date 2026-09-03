@@ -11,18 +11,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  route:
-    uses: ./.github/workflows/route.yml
-    secrets: inherit
-    with:
-      plan: '{"rust":"light","code_quality":"light","integration":"light","python313_consensus_gate":"light"}'
-      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
-
-  # Rust build & checks first (not matrix)
   rust:
-    needs: route
     name: Rust Checks
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).rust }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     env:
       USE_TEST_TX_HEX: '1'
@@ -55,9 +46,8 @@ jobs:
 
   # Code Quality & Unit Tests across Python versions
   code-quality:
-    needs: route
     name: Code Quality & Unit Tests
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).code_quality }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     strategy:
       matrix:
         # 3.13 runs here (code must still import/unit-test cleanly) but is NOT
@@ -111,8 +101,8 @@ jobs:
   # Integration tests that don't require Bitcoin node
   integration:
     name: Integration Tests
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).integration }}
-    needs: [route, rust]
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
+    needs: [rust]
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     env:
       PYTHONPATH: ${{ github.workspace }}/indexer/src:${{ github.workspace }}/indexer
@@ -164,9 +154,8 @@ jobs:
   # non-canonical payload): green while 3.13 keeps diverging as documented, RED if
   # 3.13 ever decodes it again (xpass) — the signal to revisit #871.
   python313-consensus-gate:
-    needs: route
     name: Python 3.13 Consensus Divergence Gate
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).python313_consensus_gate }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v5
