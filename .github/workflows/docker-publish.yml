@@ -20,13 +20,6 @@ permissions:
   packages: write
 
 jobs:
-  route:
-    uses: ./.github/workflows/route.yml
-    secrets: inherit
-    with:
-      plan: '{"push_to_registry":"docker"}'
-      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
-
   test:
     if: ${{ !inputs.skip_tests }}
     uses: ./.github/workflows/setup-python.yml
@@ -34,12 +27,11 @@ jobs:
       python-version: '3.10'
 
   push_to_registry:
-    needs: [route, test]
+    needs: [test]
     if: ${{ always() && (inputs.skip_tests || success()) }}
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).push_to_registry }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-medium]
     environment: ${{ inputs.environment }}
     steps:
-      - uses: runs-on/action@v2
       - name: Check out the repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
