@@ -30,16 +30,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  route:
-    uses: ./.github/workflows/route.yml
-    secrets: inherit
-    with:
-      plan: '{"label":"light"}'
-      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
-
   label:
-    needs: route
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).label }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     steps:
       # No checkout of PR code. Metadata + labels API only.
       - name: Evaluate PR and apply consensus label

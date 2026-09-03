@@ -44,19 +44,9 @@ permissions:
   contents: read
 
 jobs:
-  route:
-    uses: ./.github/workflows/route.yml
-    secrets: inherit
-    with:
-      plan: '{"changes":"light","reparse_validate":"light","reparse_validate_gate":"light"}'
-      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
-
-  # Detect whether consensus-surface files changed. Keeps the heavy reparse off
-  # unrelated PRs while the workflow still runs (so the gate reports).
   changes:
-    needs: route
     name: Detect reparse-relevant changes
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).changes }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
@@ -83,10 +73,10 @@ jobs:
 
   reparse-validate:
     name: Reparse Consensus Validation (${{ matrix.python-version }})
-    needs: [route, changes]
+    needs: [changes]
     # Heavy reparse only when consensus-surface files change (or a manual run).
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.reparse == 'true'
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).reparse_validate }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     # NOTE (#907): continue-on-error removed — a genuine reparse failure must go
     # red so this gate can be made required. The deliberate scope exclusions
     # (TIER3_CROSS_BLOCK_LEDGER) remain SKIPS inside ci_reparse_subprocess.py
@@ -184,9 +174,9 @@ jobs:
   # failed/cancelled.
   reparse-validate-gate:
     name: Reparse Consensus Validation Gate
-    needs: [route, changes, reparse-validate]
+    needs: [changes, reparse-validate]
     if: always()
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).reparse_validate_gate }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     steps:
       - name: Resolve gate from reparse matrix result
         env:
