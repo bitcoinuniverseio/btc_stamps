@@ -22,7 +22,6 @@ jobs:
       PYTHONPATH: ${{ github.workspace }}/indexer/src:${{ github.workspace }}/indexer
     
     steps:
-      - uses: runs-on/action@v2
       - name: Checkout code
         uses: actions/checkout@v5
         
