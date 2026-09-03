@@ -13,7 +13,7 @@ on:
 jobs:
   rust:
     name: Rust Checks
-    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
+    runs-on: [self-hosted, linux, x64, universe-linux]
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     env:
       USE_TEST_TX_HEX: '1'
@@ -47,7 +47,7 @@ jobs:
   # Code Quality & Unit Tests across Python versions
   code-quality:
     name: Code Quality & Unit Tests
-    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
+    runs-on: [self-hosted, linux, x64, universe-linux]
     strategy:
       matrix:
         # 3.13 runs here (code must still import/unit-test cleanly) but is NOT
@@ -101,7 +101,7 @@ jobs:
   # Integration tests that don't require Bitcoin node
   integration:
     name: Integration Tests
-    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
+    runs-on: [self-hosted, linux, x64, universe-linux]
     needs: [rust]
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     env:
@@ -155,7 +155,7 @@ jobs:
   # 3.13 ever decodes it again (xpass) — the signal to revisit #871.
   python313-consensus-gate:
     name: Python 3.13 Consensus Divergence Gate
-    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
+    runs-on: [self-hosted, linux, x64, universe-linux]
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v5
