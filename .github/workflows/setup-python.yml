@@ -9,7 +9,7 @@ on:
 
 jobs:
   setup:
-    runs-on: [self-hosted, linux, x64, universe-linux]
+    runs-on: [self-hosted, linux, x64, universe-super]
     outputs:
       cache-hit: ${{ steps.cache-poetry.outputs.cache-hit }}
     steps:
