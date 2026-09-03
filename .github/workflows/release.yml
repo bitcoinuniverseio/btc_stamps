@@ -64,18 +64,9 @@ env:
   GIT_USER_EMAIL: action@github.com
 
 jobs:
-  route:
-    uses: ./.github/workflows/route.yml
-    secrets: inherit
-    with:
-      plan: '{"prepare":"light","finalize":"light"}'
-      config_ref: 1dd19289af21f4f6be01f874390a180b3af8bb38
-
-  # Manual trigger: open the release PR to main and let it auto-merge.
   prepare:
-    needs: route
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).prepare }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     permissions:
       contents: write
       pull-requests: write
@@ -164,13 +155,12 @@ jobs:
 
   # Runs when a release/* PR is merged into main: tag + publish the release.
   finalize:
-    needs: route
     if: >-
       github.event_name == 'pull_request'
       && github.event.pull_request.merged == true
       && github.event.pull_request.base.ref == 'main'
       && startsWith(github.event.pull_request.head.ref, 'release/')
-    runs-on: ${{ fromJSON(needs.route.outputs.targets).finalize }}
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     permissions:
       contents: write
       pull-requests: write
