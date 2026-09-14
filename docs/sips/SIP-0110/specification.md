@@ -64,9 +64,7 @@ the UTXO set), whereas inscription content lives in **witness** data whose reten
 rules; the link to the source inscription is a one-time attestation recorded at creation, not a
 live binding.
 
-The motivation, honest-economics analysis, and the BIP-110 resilience framing (the source of the
-`0110` number) are non-normative and are retained in issue **#878**; this file carries the
-**normative Specification** and its implementation-binding appendices.
+This file carries the normative Specification and its implementation-binding appendices.
 
 ---
 
@@ -646,11 +644,10 @@ implementation-PR changes.)
 
 | # | Decision |
 |---|----------|
-| — | **SIP number = SIP-0110** (deliberate BIP-110 thematic mirror; 0012–0109 stay available) |
+| Reserved | **SIP number = SIP-0110**; 0012-0109 stay available. |
 | #2 | **Op keyword = `PRESERVE`** |
 | #8 | **`PRESERVE_MAX_FULL_CONTENT_BYTES = 65535`** (structural: 2-byte OLGA length prefix; 65,529 effective after the `stamp:` prefix) |
 | #9 | **`p = "SRC-ORD"`**, registered alongside SRC-20/721/101 but routed to a separate PRESERVE processor, fully isolated from SRC-20 balance consensus |
-| #11 | **BIP-110 34-byte boundary resolved favorably** — the cap measures the **scriptPubKey** and is **inclusive (≤ 34)**; a P2WSH scriptPubKey is exactly 34 bytes, so new OLGA stamps remain creatable. Pinned to current `bip-0110.mediawiki`; exact upstream revision MUST be recorded at Accepted. |
 | — | **Encoding = direct, non-Counterparty transaction** for the envelope (§3.7); 2-tx reference model (§3.3) |
 | — | **v1.10 scope = `full` + `anchor`, Method B only** (Method A/BIP-322 deferred) |
 | #1 | **Verification architecture = Option 2 (two-tier)** adopted; under **Option A** all provenance/canonicity/`verified` moves to the verifier + frontend, off consensus (§3.6) |
@@ -694,4 +691,4 @@ These are outside this repo's docs and cannot be closed by specification alone:
 ---
 
 *Supporting (non-normative): [`reference-implementation.md`](./reference-implementation.md),
-[`test-vectors.md`](./test-vectors.md). Historical Motivation / BIP-110 framing: issue #878.*
+[`test-vectors.md`](./test-vectors.md). Historical motivation: issue #878.*
