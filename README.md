@@ -38,7 +38,7 @@ designed with immutability at their core:
 | 🏛️ **Classic Stamps** | Immutable digital collectibles via Counterparty standards | Block 779,652 |
 | 💰 **SRC-20** | Fair-launch fungible tokens, standard BTC miner fees only | Block 788,041 |
 | 🖼️ **SRC-721** | Layered NFTs composed from multiple Stamps via JSON manifests | Block 792,370 |
-| ⚡ **OLGA** | P2WSH encoding: smaller transactions, 60-70% lower costs | Blocks 833,000 / 865,000 / 940,000 |
+| ⚡ **OLGA** | P2WSH encoding: smaller transactions, 60-70% lower costs | Blocks 833,000 (Classic Stamps) / 865,000 (direct Bitcoin) |
 | 🔄 **SRC-721r** | Recursive Stamps with JavaScript, virtually unlimited file sizes | Active |
 | 🌐 **SRC-101** | Bitcoin-native domain name system | Block 870,652 |
 
@@ -71,8 +71,11 @@ A technical breakthrough that eliminates Base64 encoding overhead, reducing tran
 by 50% and lowering costs by 60-70% compared to the original OP_MULTISIG format. OLGA
 maintains full functionality while being significantly more efficient.
 
-**History**: OLGA activated per-protocol: Classic Stamps at Block 833,000, SRC-20 at Block
-865,000, and SRC-101 at Block 940,000. It is now the standard for new Classic Stamps.
+**History**: OLGA activated in two steps. Classic Stamps gained P2WSH at Block 833,000
+(`CP_P2WSH_FEAT_BLOCK_START`). P2WSH data collection for direct Bitcoin transactions activated
+at Block 865,000 (`BTC_SRC20_OLGA_BLOCK`) and covers SRC-20 and SRC-101 alike. It is now the
+standard for new Classic Stamps. See [`docs/CONSENSUS.md`](docs/CONSENSUS.md#carriers) for the
+byte-level format.
 
 ### 🔄 SRC-721r Stamps
 The next evolution of SRC-721, enabling complex recursive images created using JavaScript and
@@ -380,6 +383,19 @@ Protocol evolution is governed through community-driven SIPs. See [SIP-0000](htt
 Full roadmap and gating criteria: [bitcoinstamps.xyz/en/protocols/sips](https://bitcoinstamps.xyz/en/protocols/sips) | Whitepaper details: [docs/whitepaper/improvement-proposals.md](docs/whitepaper/improvement-proposals.md)
 
 ## 📚 Documentation & Links
+
+**Start at [`docs/README.md`](docs/README.md), the documentation map for this repository.**
+
+The four documents most people need:
+
+| Document | Answers |
+|----------|---------|
+| [`docs/CONSENSUS.md`](docs/CONSENSUS.md) | What exactly makes a transaction a stamp: activation heights, carrier encoding byte by byte, carrier precedence, SRC-20 and SRC-101 validation, the block hash model, reorg and rollback. Read this before writing a second implementation. |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Components, data flow, and where each responsibility lives. |
+| [`docs/PROTOCOLS.md`](docs/PROTOCOLS.md) | Message shapes and worked examples per protocol. |
+| [`docs/DATABASE.md`](docs/DATABASE.md) | The schema the indexer writes into. |
+
+External links:
 
 - 📄 Full protocol documentation at [bitcoinstamps.xyz](https://bitcoinstamps.xyz), the core Bitcoin Stamps protocol site
 - 🌐 Explore stamps, tokens, and transactions at [stampchain.io](https://stampchain.io/)

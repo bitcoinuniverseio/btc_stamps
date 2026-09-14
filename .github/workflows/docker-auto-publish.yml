@@ -38,7 +38,7 @@ on:
 
 jobs:
   build_and_push:
-    runs-on: runs-on=${{ github.run_id }}-build_and_push/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-medium]
     env:
       REGISTRY: ghcr.io
       IMAGE_NAME: bitcoinuniverseio/btc-stamps-indexer
@@ -52,7 +52,6 @@ jobs:
       id-token: write
 
     steps:
-      - uses: runs-on/action@v2
       - name: Check out the repo
         uses: actions/checkout@v5
 
