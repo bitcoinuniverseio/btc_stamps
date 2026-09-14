@@ -243,7 +243,6 @@ review blocker, not a nit.
 Use "inscription" **only** when you genuinely mean an **Ordinals** inscription:
 
 - Comparing Stamps to Ordinals ("Ordinals inscriptions live in witness data").
-- Referring to BIP-110's "witness-data inscriptions."
 - **SIP-0110 (PRESERVE)** is *about* preserving Ordinals inscriptions — it correctly says
   "inscription" for the source Ordinals content and "Stamp" for the resulting asset. That is the
   model to follow: name the Ordinals thing an inscription, name the Stamps thing a stamp, and never
