@@ -19,8 +19,8 @@ jobs:
       python-version: '3.10'
 
   test-build:
-    needs: build
-    runs-on: runs-on=${{ github.run_id }}-test_build/runner=universe-hosted/cpu=2+8/env=production
+    needs: [build]
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     outputs:
       status: ${{ steps.test.outputs.test_status }}
 

@@ -29,10 +29,9 @@ jobs:
   push_to_registry:
     needs: [test]
     if: ${{ always() && (inputs.skip_tests || success()) }}
-    runs-on: runs-on=${{ github.run_id }}-push_to_registry/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-medium]
     environment: ${{ inputs.environment }}
     steps:
-      - uses: runs-on/action@v2
       - name: Check out the repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       

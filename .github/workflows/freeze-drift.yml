@@ -29,11 +29,9 @@ permissions:
   pull-requests: write
 
 jobs:
-  # Detect whether freeze-relevant files changed. Keeps the heavy Docker build
-  # off unrelated PRs while the workflow still runs (so the gate reports).
   changes:
     name: Detect freeze-relevant changes
-    runs-on: runs-on=${{ github.run_id }}-changes/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
@@ -57,10 +55,10 @@ jobs:
 
   freeze-drift:
     name: Freeze Drift Check
-    needs: changes
+    needs: [changes]
     # Heavy Docker build only when freeze-relevant files change (or a manual run).
     if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.freeze == 'true'
-    runs-on: runs-on=${{ github.run_id }}-freeze_drift/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-medium]
     steps:
       - uses: actions/checkout@v5
 
@@ -164,7 +162,7 @@ jobs:
     name: Freeze Drift Gate
     needs: [changes, freeze-drift]
     if: always()
-    runs-on: runs-on=${{ github.run_id }}-freeze_drift_gate/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     steps:
       - name: Resolve gate from freeze-drift result
         env:

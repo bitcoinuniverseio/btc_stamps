@@ -64,10 +64,9 @@ env:
   GIT_USER_EMAIL: action@github.com
 
 jobs:
-  # Manual trigger: open the release PR to main and let it auto-merge.
   prepare:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: runs-on=${{ github.run_id }}-prepare/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     permissions:
       contents: write
       pull-requests: write
@@ -161,7 +160,7 @@ jobs:
       && github.event.pull_request.merged == true
       && github.event.pull_request.base.ref == 'main'
       && startsWith(github.event.pull_request.head.ref, 'release/')
-    runs-on: runs-on=${{ github.run_id }}-finalize/runner=universe-hosted/cpu=2+8/env=production
+    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
     permissions:
       contents: write
       pull-requests: write
