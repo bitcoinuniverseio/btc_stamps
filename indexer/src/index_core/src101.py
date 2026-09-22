@@ -1145,21 +1145,26 @@ def update_src101_owners(db, block_index, src101_processed_in_block):
                         raise ValueError("cannot mint the same tokenid")
                 elif src101_dict["op"] == "TRANSFER":
                     if owner_dict is None:
-                        owner_dict = {
-                            "p": src101_dict["p"],
-                            "deploy_hash": src101_dict["deploy_hash"],
-                            "tokenid": src101_dict["tokenid"],
-                            "tokenid_utf8": src101_dict["tokenid_utf8"],
-                            "owner": src101_dict["src101_owner"],
-                            "preowner": src101_dict["src101_preowner"],
-                            "expire_timestamp": src101_dict["expire_timestamp"],
-                            "txt_data": None,
-                            "address_btc": None,
-                            "address_eth": None,
-                            "prim": False,
-                            "img": None,
-                        }
-                        owner_updates.append(owner_dict)
+                        # A TRANSFER carries tokenid as a list; expand one
+                        # owner row per tokenid like the MINT branch, otherwise
+                        # update_owner_table concatenates a list into its id
+                        # string and the block wedges in a rollback loop.
+                        for index in range(len(src101_dict["tokenid"])):
+                            owner_dict = {
+                                "p": src101_dict["p"],
+                                "deploy_hash": src101_dict["deploy_hash"],
+                                "tokenid": src101_dict["tokenid"][index],
+                                "tokenid_utf8": src101_dict["tokenid_utf8"][index],
+                                "owner": src101_dict["src101_owner"],
+                                "preowner": src101_dict["src101_preowner"],
+                                "expire_timestamp": src101_dict["expire_timestamp"],
+                                "txt_data": None,
+                                "address_btc": None,
+                                "address_eth": None,
+                                "prim": False,
+                                "img": None,
+                            }
+                            owner_updates.append(owner_dict)
                     else:
                         owner_dict["owner"] = (src101_dict["src101_owner"],)
                         owner_dict["preowner"] = src101_dict["src101_preowner"]
