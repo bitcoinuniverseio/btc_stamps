@@ -19,7 +19,8 @@ class TestZMQUtils(unittest.TestCase):
 
     @patch("index_core.zmq_utils.config.QUICKNODE_ENDPOINT", None)
     @patch("index_core.zmq_utils.zmq.Context")
-    def test_check_zmq_ports_success(self, mock_context):
+    @patch("index_core.zmq_utils.ZMQNotifier._node_publishes_rawblock", return_value=True)
+    def test_check_zmq_ports_success(self, _mock_published, mock_context):
         """Test successful ZMQ port checking."""
         mock_socket = Mock()
         mock_context_instance = Mock()
@@ -37,6 +38,36 @@ class TestZMQUtils(unittest.TestCase):
             mock_socket.connect.assert_called_once_with("tcp://localhost:29333")
             mock_socket.setsockopt.assert_any_call(zmq.SUBSCRIBE, b"rawblock")
 
+    @patch("index_core.zmq_utils.config.QUICKNODE_ENDPOINT", None)
+    @patch("index_core.zmq_utils.zmq.Context")
+    @patch("index_core.zmq_utils.ZMQNotifier._node_publishes_rawblock", return_value=False)
+    def test_check_zmq_ports_node_without_zmq(self, _mock_published, mock_context):
+        """A node publishing no rawblock means polling, although connect would succeed."""
+        mock_socket = Mock()
+        mock_context.return_value.socket.return_value = mock_socket
+
+        with patch("index_core.zmq_utils.config.ZMQ_BLOCK_PORT", 9333):
+            result = self.zmq_notifier.check_zmq_ports()
+
+        self.assertFalse(result)
+        self.assertFalse(self.zmq_notifier._is_active)
+        mock_socket.connect.assert_not_called()
+
+    def test_node_publishes_rawblock_reads_getzmqnotifications(self):
+        """Only a pubrawblock on the configured port counts."""
+        backend = Mock()
+        with patch("index_core.backend.Backend", return_value=backend):
+            backend.rpc.return_value = []
+            self.assertFalse(self.zmq_notifier._node_publishes_rawblock(9333))
+            backend.rpc.return_value = [{"type": "pubhashtx", "address": "tcp://127.0.0.1:9333"}]
+            self.assertFalse(self.zmq_notifier._node_publishes_rawblock(9333))
+            backend.rpc.return_value = [{"type": "pubrawblock", "address": "tcp://127.0.0.1:9334"}]
+            self.assertFalse(self.zmq_notifier._node_publishes_rawblock(9333))
+            backend.rpc.return_value = [{"type": "pubrawblock", "address": "tcp://127.0.0.1:9333"}]
+            self.assertTrue(self.zmq_notifier._node_publishes_rawblock(9333))
+            backend.rpc.side_effect = RuntimeError("rpc down")
+            self.assertFalse(self.zmq_notifier._node_publishes_rawblock(9333))
+
     @patch("index_core.zmq_utils.config.QUICKNODE_ENDPOINT", "some-endpoint")
     def test_check_zmq_ports_quicknode_disabled(self):
         """Test ZMQ is disabled when using Quicknode."""
@@ -47,7 +78,8 @@ class TestZMQUtils(unittest.TestCase):
 
     @patch("index_core.zmq_utils.config.QUICKNODE_ENDPOINT", None)
     @patch("index_core.zmq_utils.zmq.Context")
-    def test_check_zmq_ports_connection_failure(self, mock_context):
+    @patch("index_core.zmq_utils.ZMQNotifier._node_publishes_rawblock", return_value=True)
+    def test_check_zmq_ports_connection_failure(self, _mock_published, mock_context):
         """Test ZMQ port checking with connection failure."""
         mock_socket = Mock()
         mock_socket.connect.side_effect = zmq.error.ZMQError("Connection failed")
