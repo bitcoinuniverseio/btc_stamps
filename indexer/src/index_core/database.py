@@ -2863,6 +2863,9 @@ def apply_schema_updates(db, cursor):
 
 def import_bootstrap_data(cursor, filename, url, insert_query):
     """Import bootstrap data, trying local file first, then URL as fallback."""
+    if config.TESTNET or config.REGTEST:
+        logger.info("Skipping mainnet bootstrap metadata on the selected test network")
+        return
     import os
 
     # Try local file first
@@ -3272,6 +3275,7 @@ def initialize_db():
     attempt = 0
 
     while attempt < max_retries:
+        db = None
         try:
             # Get connection from database manager
             db = db_manager.connect()
@@ -3298,6 +3302,11 @@ def initialize_db():
             return db
 
         except Exception as e:
+            if db is not None:
+                try:
+                    db.rollback()
+                finally:
+                    db.close()
             attempt += 1
             if attempt >= max_retries:
                 logger.error(f"Failed to initialize database after {max_retries} attempts: {e}")

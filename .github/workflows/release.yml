@@ -66,7 +66,7 @@ env:
 jobs:
   prepare:
     if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
+    runs-on: [self-hosted, linux, x64, universe-super]
     permissions:
       contents: write
       pull-requests: write
@@ -160,7 +160,7 @@ jobs:
       && github.event.pull_request.merged == true
       && github.event.pull_request.base.ref == 'main'
       && startsWith(github.event.pull_request.head.ref, 'release/')
-    runs-on: [self-hosted, linux, x64, universe, gcp, universe-gcp-small]
+    runs-on: [self-hosted, linux, x64, universe-super]
     permissions:
       contents: write
       pull-requests: write
