@@ -1,4 +1,4 @@
-USE `btc_stamps`;
+-- The caller selects the configured database without switching to a fixed name.
 CREATE TABLE IF NOT EXISTS blocks (
   `block_index` INT,
   `block_hash` VARCHAR(64),
