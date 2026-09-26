@@ -17,9 +17,7 @@
 > (`utxo-spend`) only** (Method A / BIP-322 deferred to a follow-up SIP); corrects the
 > activation/fail-safe description (a non-upgraded indexer **drops** `p:"SRC-ORD"`, it does not
 > index it as an ordinary stamp); resolves Open Question **#8**
-> (`PRESERVE_MAX_FULL_CONTENT_BYTES = 65_535`) and Open Question **#11** (BIP-110 34-byte cap:
-> scriptPubKey, inclusive — favorable); and applies the review's precision fixes to the BIP-110
-> facts.
+> (`PRESERVE_MAX_FULL_CONTENT_BYTES = 65_535`).
 
 ## 4. Reference Implementation
 
@@ -237,9 +235,7 @@ missed by non-upgraded indexers.
 **(0) Decisions finalized in this revision.** The following were open in the earlier draft and
 are now **decided**, and should be read as design decisions rather than proposals:
 
-- **SIP number = `SIP-0110`** — deliberate, maintainer-reserved thematic mirror of BIP-110
-  (§ Numbering note). 0012–0109 stay available for normal sequential assignment; the gap is
-  intentional.
+- **SIP number = `SIP-0110`**, reserved by the maintainers. 0012-0109 stay available for sequential assignment.
 - **Operation keyword = `PRESERVE`** (Open Question #2 resolved).
 - **Protocol identifier = `p = "SRC-ORD"`**, registered alongside SRC-20/721/101 but routed to a
   separate `PRESERVE` processor and fully isolated from SRC-20 balance consensus (Open Question
@@ -259,7 +255,6 @@ are now **decided**, and should be read as design decisions rather than proposal
   risk).
 - **Maximum full-mode content size = `PRESERVE_MAX_FULL_CONTENT_BYTES = 65_535`** (Open Question
   #8 resolved — see below).
-- **BIP-110 34-byte boundary resolved favorably** (Open Question #11 resolved — see below).
 
 **Genuinely-remaining open items (Option A):** #1 (verification architecture — Option 2 adopted;
 all provenance/canonicity now off consensus), #3 (commit/reveal — recommend defer), #6 (SIP-0005
@@ -309,32 +304,13 @@ is closed with the removed stream. #5 (signature acceptance window) applies to M
   **output/base bytes with no witness discount**, witness-scale content (~4 MB) is **not
   reachable** in this encoding. The constant SHOULD be codified in `config.py` at
   implementation time.
-- **BIP-110 specifics (corrected per the #878 external review, primary-source-verified).**
-  Reference implementation is **Bitcoin Knots v29.3.knots20260508** (not 29.2). Flag-day
-  activation is **~September 1, 2026 (height 965,664)**; **August 2026 is the
-  mandatory-signaling window**, not the flag day. Miner fast-track: 55% of a 2,016-block period
-  (version bit 4); miner support **under 1%** as of mid-2026. The 256-byte witness cap applies
-  to **data pushes**, not the tapleaf container — large witness content could be re-chunked
-  (less efficiently) rather than being outright blocked. The pre-activation exemption precisely
-  **grandfathers *spends of* pre-activation UTXOs** (rather than "exempting UTXOs" loosely).
-  **The 34-byte boundary (Open Question #11) is RESOLVED, favorably:** the canonical BIP-110
-  text — *"New output scriptPubKeys exceeding 34 bytes are invalid…"* — measures the
-  **scriptPubKey** and is **inclusive (≤ 34)**; a P2WSH scriptPubKey is exactly 34 bytes, so
-  **new OLGA stamps remain creatable under BIP-110**, while the larger bare-multisig encoding is
-  blocked under any reading. The resolution is pinned to the current `bip-0110.mediawiki` text;
-  the exact upstream revision/commit hash MUST be recorded when the SIP moves to Accepted (TBD).
-  On OLGA efficiency, use sourced figures — **~50% size / ~60–70% cost** improvement over bare
-  multisig — not the unsourced "30–95%".
-
 **(b) Additional open questions identified during drafting.** #10 (`migration_hash`) and #12
 (anchor-mode canonicity) were drafting-era consensus questions; **Option A resolves both by moving
 provenance/canonicity off consensus** — #10 is closed with the removed stream, and #12 becomes a
 verifier/frontend floor (an anchor record is never `verified`/`canonical`, §3.6.2). (#9,
-protocol-identifier registration, is **resolved** to `p = "SRC-ORD"`; #11, the BIP-110 34-byte-cap
-boundary, is now **resolved favorably** — see the BIP-110 bullet in (a).)
+protocol-identifier registration, is **resolved** to `p = "SRC-ORD"`).
 
-**(c) Numbering.** The number is **decided: SIP-0110**, a deliberate, maintainer-reserved
-thematic mirror of BIP-110 (§ Numbering note). This intentionally departs from strict sequential
+**(c) Numbering.** The number is **decided: SIP-0110**, a maintainer-reserved number. This intentionally departs from strict sequential
 assignment; **0012–0109 remain available** for normal sequential SIPs, and the gap is
 intentional, not an error.
 

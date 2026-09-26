@@ -33,6 +33,11 @@ class ZMQNotifier:
                 host: str = config.ZMQ_HOST or config.BACKEND_CONNECT
                 port: int = config.ZMQ_BLOCK_PORT
 
+                if not self._node_publishes_rawblock(port):
+                    logger.warning(f"Node does not publish rawblock on port {port} - using RPC polling only")
+                    self.cleanup()
+                    return False
+
                 zmq_url: str = f"tcp://{host}:{port}"
                 logger.debug(f"Connecting to ZMQ block port {zmq_url}")
                 self.socket.connect(zmq_url)
@@ -53,6 +58,25 @@ class ZMQNotifier:
             logger.error(f"Error checking ZMQ ports: {e}")
             self.cleanup()
             return False
+
+    def _node_publishes_rawblock(self, port: int) -> bool:
+        """Ask the node whether it publishes rawblock on `port`.
+
+        A SUB socket connects even when nothing listens, so a successful connect
+        proves nothing. On a node without ZMQ the indexer then waited at the tip
+        forever for a block notification that never came.
+        """
+        # Local import: backend is heavy and not needed when ZMQ is unused.
+        from index_core.backend import Backend
+
+        try:
+            notifications = Backend().rpc("getzmqnotifications", []) or []
+        except Exception as e:
+            logger.warning(f"getzmqnotifications failed: {e}")
+            return False
+        return any(
+            n.get("type") == "pubrawblock" and str(n.get("address", "")).endswith(f":{port}") for n in notifications
+        )
 
     def wait_for_notification(self, timeout: int = 1000) -> Optional[Tuple[bytes, bytes, bytes]]:
         """Wait for a block notification"""
