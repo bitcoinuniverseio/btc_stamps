@@ -584,7 +584,7 @@ Transaction outputs:
 | **0011** | Batch Operations & State Channels for SRC-20 | Draft | [#736](https://github.com/stampchain-io/btc_stamps/issues/736) | TBD |
 | **0110** | Ordinals Provenance Preservation ("Stamp an Inscription") | Draft | [#878](https://github.com/stampchain-io/btc_stamps/issues/878) | TBD |
 
-> **SIP-0110** is intentionally numbered as a thematic mirror of **BIP-110** (a contested Bitcoin data-restriction proposal): where BIP-110 would restrict witness-data inscriptions, SIP-0110 lets Ordinals holders preserve their content on the UTXO set. The 0012–0109 range stays open for normal sequential assignment.
+> **SIP-0110 (PRESERVE)** lets Ordinals holders preserve their content on the UTXO set. The reserved number leaves 0012-0109 available for sequential assignment.
 
 ---
 
