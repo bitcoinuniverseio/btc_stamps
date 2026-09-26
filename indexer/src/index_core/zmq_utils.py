@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Optional, Tuple
 
 import zmq
@@ -7,6 +8,11 @@ import zmq.sugar.socket
 import config
 
 logger = logging.getLogger(__name__)
+
+# The polling loop re-checks ZMQ every few blocks; ask the node at most this
+# often so a node without ZMQ costs one RPC and one warning, not a flood.
+NODE_CHECK_TTL_SECONDS = 600
+_node_check = {"port": None, "result": None, "at": 0.0}
 
 
 class ZMQNotifier:
@@ -21,6 +27,9 @@ class ZMQNotifier:
             logger.info("ZMQ not available with Quicknode - using RPC polling only")
             return False
 
+        if not self._node_publishes_rawblock(config.ZMQ_BLOCK_PORT):
+            return False
+
         try:
             self.context = zmq.Context()
             self.socket = self.context.socket(zmq.SUB)
@@ -32,11 +41,6 @@ class ZMQNotifier:
             try:
                 host: str = config.ZMQ_HOST or config.BACKEND_CONNECT
                 port: int = config.ZMQ_BLOCK_PORT
-
-                if not self._node_publishes_rawblock(port):
-                    logger.warning(f"Node does not publish rawblock on port {port} - using RPC polling only")
-                    self.cleanup()
-                    return False
 
                 zmq_url: str = f"tcp://{host}:{port}"
                 logger.debug(f"Connecting to ZMQ block port {zmq_url}")
@@ -66,17 +70,26 @@ class ZMQNotifier:
         proves nothing. On a node without ZMQ the indexer then waited at the tip
         forever for a block notification that never came.
         """
+        now = time.monotonic()
+        if _node_check["port"] == port and now - _node_check["at"] < NODE_CHECK_TTL_SECONDS:
+            return bool(_node_check["result"])
+
         # Local import: backend is heavy and not needed when ZMQ is unused.
         from index_core.backend import Backend
 
         try:
             notifications = Backend().rpc("getzmqnotifications", []) or []
+            result = any(
+                n.get("type") == "pubrawblock" and str(n.get("address", "")).endswith(f":{port}")
+                for n in notifications
+            )
         except Exception as e:
             logger.warning(f"getzmqnotifications failed: {e}")
-            return False
-        return any(
-            n.get("type") == "pubrawblock" and str(n.get("address", "")).endswith(f":{port}") for n in notifications
-        )
+            result = False
+        if not result and _node_check["result"] is not False:
+            logger.warning(f"Node does not publish rawblock on port {port} - using RPC polling only")
+        _node_check.update(port=port, result=result, at=now)
+        return result
 
     def wait_for_notification(self, timeout: int = 1000) -> Optional[Tuple[bytes, bytes, bytes]]:
         """Wait for a block notification"""

@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import zmq
 
+from index_core import zmq_utils
 from index_core.zmq_utils import ZMQNotifier
 
 
@@ -12,6 +13,7 @@ class TestZMQUtils(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         self.zmq_notifier = ZMQNotifier()
+        zmq_utils._node_check.update(port=None, result=None, at=0.0)
 
     def tearDown(self):
         """Clean up after tests."""
@@ -56,17 +58,32 @@ class TestZMQUtils(unittest.TestCase):
     def test_node_publishes_rawblock_reads_getzmqnotifications(self):
         """Only a pubrawblock on the configured port counts."""
         backend = Mock()
+
+        def check(answer):
+            zmq_utils._node_check.update(port=None, result=None, at=0.0)
+            if isinstance(answer, Exception):
+                backend.rpc.side_effect = answer
+            else:
+                backend.rpc.side_effect = None
+                backend.rpc.return_value = answer
+            return self.zmq_notifier._node_publishes_rawblock(9333)
+
         with patch("index_core.backend.Backend", return_value=backend):
-            backend.rpc.return_value = []
-            self.assertFalse(self.zmq_notifier._node_publishes_rawblock(9333))
-            backend.rpc.return_value = [{"type": "pubhashtx", "address": "tcp://127.0.0.1:9333"}]
-            self.assertFalse(self.zmq_notifier._node_publishes_rawblock(9333))
-            backend.rpc.return_value = [{"type": "pubrawblock", "address": "tcp://127.0.0.1:9334"}]
-            self.assertFalse(self.zmq_notifier._node_publishes_rawblock(9333))
-            backend.rpc.return_value = [{"type": "pubrawblock", "address": "tcp://127.0.0.1:9333"}]
-            self.assertTrue(self.zmq_notifier._node_publishes_rawblock(9333))
-            backend.rpc.side_effect = RuntimeError("rpc down")
-            self.assertFalse(self.zmq_notifier._node_publishes_rawblock(9333))
+            self.assertFalse(check([]))
+            self.assertFalse(check([{"type": "pubhashtx", "address": "tcp://127.0.0.1:9333"}]))
+            self.assertFalse(check([{"type": "pubrawblock", "address": "tcp://127.0.0.1:9334"}]))
+            self.assertTrue(check([{"type": "pubrawblock", "address": "tcp://127.0.0.1:9333"}]))
+            self.assertFalse(check(RuntimeError("rpc down")))
+
+    @patch("index_core.zmq_utils.config.QUICKNODE_ENDPOINT", None)
+    def test_node_check_asks_the_node_once_per_ttl(self):
+        """The polling loop re-checks often; the node is asked once per TTL."""
+        backend = Mock()
+        backend.rpc.return_value = []
+        with patch("index_core.backend.Backend", return_value=backend):
+            for _ in range(5):
+                self.assertFalse(self.zmq_notifier.check_zmq_ports())
+        self.assertEqual(backend.rpc.call_count, 1)
 
     @patch("index_core.zmq_utils.config.QUICKNODE_ENDPOINT", "some-endpoint")
     def test_check_zmq_ports_quicknode_disabled(self):
