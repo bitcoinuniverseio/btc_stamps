@@ -31,6 +31,7 @@ STAMP_UPDATE_INTERVAL = int(os.getenv("MARKET_DATA_STAMP_UPDATE_INTERVAL", "900"
 SRC20_UPDATE_INTERVAL = int(os.getenv("MARKET_DATA_SRC20_UPDATE_INTERVAL", "300"))  # 5 minutes default
 COLLECTION_UPDATE_INTERVAL = int(os.getenv("MARKET_DATA_COLLECTION_UPDATE_INTERVAL", "1800"))  # 30 minutes default
 HOLDER_COUNT_UPDATE_INTERVAL = int(os.getenv("MARKET_DATA_HOLDER_UPDATE_INTERVAL", "300"))  # 5 minutes default
+DISPENSER_SYNC_INTERVAL = int(os.getenv("MARKET_DATA_DISPENSER_SYNC_INTERVAL", "300"))  # 5 minutes default
 
 # Batch processing configuration - optimized for production
 STAMP_BATCH_SIZE = int(os.getenv("MARKET_DATA_STAMP_BATCH_SIZE", "50"))  # Reduced for database efficiency
@@ -178,6 +179,11 @@ class MarketDataJobScheduler:
                 src20_is_due = self._is_job_due("src20_update", SRC20_UPDATE_INTERVAL, current_time)
                 if src20_is_due:
                     self._submit_job("src20_update", self._update_src20_market_data_job)
+
+                # Open/closed listings: the stamp job above refreshes an unsold
+                # stamp only weekly, so listings are synced on their own.
+                if self._is_job_due("dispenser_sync", DISPENSER_SYNC_INTERVAL, current_time):
+                    self._submit_job("dispenser_sync", self._sync_open_dispensers_job)
 
                 # Check if collection market data update is due
                 if self._is_job_due("collection_update", COLLECTION_UPDATE_INTERVAL, current_time):
@@ -612,6 +618,16 @@ class MarketDataJobScheduler:
                 raise
         finally:
             coordinator.end_task("market_data_src20", is_heavy=True)
+
+    def _sync_open_dispensers_job(self):
+        """Background job to correct stamp listing columns from open dispensers."""
+        from index_core.dispenser_sync import sync_open_dispensers
+
+        task_db = self.database_manager.connect()
+        try:
+            sync_open_dispensers(task_db)
+        finally:
+            task_db.close()
 
     def _update_collection_market_data_job(self):
         """
