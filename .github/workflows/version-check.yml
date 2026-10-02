@@ -18,7 +18,7 @@ on:
 
 jobs:
   version-check:
-    runs-on: [self-hosted, linux, x64, universe-super]
+    runs-on: [self-hosted, universe-runners-1]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

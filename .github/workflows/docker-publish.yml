@@ -29,7 +29,7 @@ jobs:
   push_to_registry:
     needs: [test]
     if: ${{ always() && (inputs.skip_tests || success()) }}
-    runs-on: [self-hosted, linux, x64, universe-super]
+    runs-on: [self-hosted, universe-runners-1]
     environment: ${{ inputs.environment }}
     steps:
       - name: Check out the repo
