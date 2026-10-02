@@ -20,7 +20,7 @@ jobs:
 
   test-build:
     needs: [build]
-    runs-on: [self-hosted, linux, x64, universe-super]
+    runs-on: ${{ contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && fromJSON('["self-hosted","universe-runners-1"]') || 'ubuntu-24.04' }}
     outputs:
       status: ${{ steps.test.outputs.test_status }}
 
