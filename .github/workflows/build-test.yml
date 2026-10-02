@@ -20,7 +20,7 @@ jobs:
 
   test-build:
     needs: [build]
-    runs-on: [self-hosted, linux, x64, universe-super]
+    runs-on: [self-hosted, universe-runners-1]
     outputs:
       status: ${{ steps.test.outputs.test_status }}
 
