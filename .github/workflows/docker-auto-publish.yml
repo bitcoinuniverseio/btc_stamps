@@ -52,6 +52,8 @@ jobs:
       id-token: write
 
     steps:
+      - name: Provide universe host tools
+        uses: bitcoinuniverseio/universe-ci-actions/universe-host-tools@b11554bde3a933e23a7651654a930ad21ca8b369
       - name: Check out the repo
         uses: actions/checkout@v5
 
