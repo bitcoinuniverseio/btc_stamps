@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS `SRC20` (
   `destination` varchar(255) COLLATE utf8mb4_bin,
   `block_time` datetime DEFAULT NULL,
   `status` varchar(255) DEFAULT NULL,
+  INDEX `idx_src20_block_tx` (`block_index`, `tx_hash`),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_ci;
 
@@ -309,6 +310,7 @@ CREATE TABLE IF NOT EXISTS `SRC101` (
   `destination_nvalue` BIGINT UNSIGNED DEFAULT NULL,
   `block_time` datetime DEFAULT NULL,
   `status` varchar(255) DEFAULT NULL,
+  INDEX `idx_src101_block_tx` (`block_index`, `tx_hash`),
   PRIMARY KEY (`id`),
   INDEX `block_index` (`block_index`),
   INDEX `idx_deploy_hash_tokenid` (`deploy_hash`, `tokenid`),
@@ -353,6 +355,7 @@ CREATE TABLE IF NOT EXISTS `SRC101Valid` (
   `destination_nvalue` BIGINT UNSIGNED DEFAULT NULL,
   `block_time` datetime DEFAULT NULL,
   `status` varchar(255) DEFAULT NULL,
+  INDEX `idx_src101valid_block_tx` (`block_index`, `tx_hash`),
   PRIMARY KEY (`id`),
   INDEX `block_index` (`block_index`),
   INDEX `idx_deploy_hash` (`deploy_hash`),
