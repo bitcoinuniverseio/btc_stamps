@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "preparedAtUTC": "2026-10-03",
+  "repository_full_name": "bitcoinuniverseio/btc_stamps",
+  "baselineCommit": "8666d779d23caf418edb2c78262a0338b7314b7f",
+  "mode": "preparation; no executable edit, no remote write",
+  "annotations": [
+    {
+      "id": "PROTO-SRC101-001",
+      "workPackage": "PROTO-SRC101-001",
+      "repository_full_name": "bitcoinuniverseio/btc_stamps",
+      "path": "indexer/src/index_core/src101.py",
+      "baselineCommit": "8666d779d23caf418edb2c78262a0338b7314b7f",
+      "baselineBlobSHA": "20ac95fa5466c5ac04e7b6b9d583475e862f308d",
+      "originalFile": "/workspace/scratch/2477a3428e90/protocol_research/custom_reference/bitcoinuniverseio/btc_stamps/indexer/src/index_core/src101.py",
+      "annotatedFile": "/workspace/scratch/2477a3428e90/protocol_research/prepared_dependency/bitcoinuniverseio/btc_stamps/indexer/src/index_core/src101.py",
+      "annotatedBlobSHA": "aef9b18036979b1e222cdae3b208fe530f13773d",
+      "originalSHA256": "1c9010bfe9eeb68dd202b4f5fc46a6b3b17b0bb090c97ee0c1d9f87da56e95cc",
+      "annotatedSHA256": "4fe259aa766ef30727c282399bed490da6a2f8795c5aa90adfad2907ad304eef",
+      "annotationKind": "comment-only",
+      "anchor": "update_src101_owners",
+      "sourceCodeOutcome": "FAIL",
+      "runtimeOutcome": "BLOCKED / unobserved",
+      "executedDiagnostic": "exact token validator/helpers and owner updater with captured SQL writer",
+      "pythonASTEqual": true,
+      "scope": "scalar SRC-101 transfer owner persistence only",
+      "workPackagePath": "docs/implementation-prep-20261003-stampdex/WORK_PACKAGES.md"
+    }
+  ]
+}

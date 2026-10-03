@@ -20,7 +20,8 @@ jobs:
 
   test-build:
     needs: [build]
-    runs-on: [self-hosted, linux, x64, universe-super]
+    if: ${{ github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association)) }}
+    runs-on: [self-hosted, universe-runners-1]
     outputs:
       status: ${{ steps.test.outputs.test_status }}
 
