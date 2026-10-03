@@ -427,19 +427,22 @@ def decode_address(script_pubkey):
 
     try:
         script = bytes(script_pubkey)
-        network_prefix = "tb" if config.TESTNET else "bc"
+        # Signet shares Testnet's address encoding (tb / m,n / 2).
+        test_chain = bool(config.TESTNET) or bool(getattr(config, "SIGNET", False))
+        network_prefix = "tb" if test_chain else "bc"
+        p2pkh_version = 0x6F if test_chain else 0x00
 
         if len(script) == 25 and script[:3] == b"\x76\xa9\x14" and script[-2:] == b"\x88\xac":
-            address = _base58check_address(script[3:23], 0x6F if config.TESTNET else 0x00)
+            address = _base58check_address(script[3:23], p2pkh_version)
         elif len(script) == 23 and script[:2] == b"\xa9\x14" and script[-1:] == b"\x87":
-            address = _base58check_address(script[2:22], 0xC4 if config.TESTNET else 0x05)
+            address = _base58check_address(script[2:22], 0xC4 if test_chain else 0x05)
         elif len(script) in (22, 34) and script[0] == 0x00 and script[1] == len(script) - 2:
             address = encoding.pubkeyhash_to_addr(script[2:], prefix=network_prefix, encoding="bech32", witver=0)
         elif len(script) == 34 and script[:2] == b"\x51\x20":
             address = encoding.pubkeyhash_to_addr(script[2:], prefix=network_prefix, encoding="bech32", witver=1)
         elif len(script) in (35, 67) and script[0] == len(script) - 2 and script[-1:] == b"\xac":
             pubkey_hash = hashlib.new("ripemd160", hashlib.sha256(script[1:-1]).digest()).digest()
-            address = _base58check_address(pubkey_hash, 0x6F if config.TESTNET else 0x00)
+            address = _base58check_address(pubkey_hash, p2pkh_version)
         else:
             raise ValueError("Unsupported scriptPubKey format")
 
