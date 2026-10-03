@@ -1123,6 +1123,42 @@ def check_src101_inputs(input_string, tx_hash, block_index):
 # 8a7365bf951a66f3a5e25dc15e8702f65b5d23d8. This is no blanket upgrade request.
 # Deployed runtime and native lifecycle: BLOCKED / unobserved, server unavailable.
 # Plan and evidence: docs/implementation-prep-20261003-stampdex/WORK_PACKAGES.md.
+# IMPLEMENTATION-HANDOFF [SDX28-PROTO-08]
+# Review same-block scalar state when fixing PROTO-SRC101-001.
+# Official 1.9.5 commit 8a7365bf fixes the initial TRANSFER scalar token path,
+# but its existing-row TRANSFER assigns owner as a one-item tuple, and RENEW
+# assigns expire_timestamp as a one-item tuple. This custom updater has the
+# same tuple assignments. Do not replace this function wholesale with upstream.
+# The isolated original official updater probe confirms tuple values after
+# two same-name valid TRANSFER rows or two RENEW rows in one block. Full native
+# parsing, SQL writes and consensus effects were not executed by that probe.
+# 1. Extend the retained scalar-token repair with explicit scalar owner/expiry
+#    state and reviewed token identity handling for each operation. Compare
+#    custom and pinned official behavior branch by branch; document any
+#    compatibility or activation decision before changing indexed history.
+# 2. Test MINT->TRANSFER, TRANSFER->TRANSFER, TRANSFER->RENEW, RENEW->RENEW,
+#    and SETRECORD around transfer for the same deployment/token in one block.
+#    Check final owner, preowner, expiry, record reset/preservation and scalar
+#    SQL parameter types. Also test separate tokens and equal text in distinct
+#    namespaces, then the next-block state read from the database.
+# 3. Run the full parser with real isolated database persistence and compare
+#    active-chain live indexing, clean replay and rollback/reapply for each case.
+#    Use Signet only after full SRC-101 support is proved; otherwise document
+#    the exact supported Testnet and its activation/source evidence.
+# Proposed test: indexer/tests/test_src101_owner_state_sequences.py; add fixtures
+# using the repository's installed indexer dependencies and isolated MySQL.
+# Run from indexer: poetry run pytest tests/test_src101_owner_state_sequences.py.
+# This test file and command are an implementation requirement, not a run receipt.
+# Deps: PROTO-SRC101-001, PRODUCT-NAME-01, PRODUCT-PROF-01, and the application
+# SDX28-PROTO-02/04/05 identity/lease work packages.
+# Acceptance: reviewed native semantics yield scalar owner/expiry values and
+# one deterministic final state across live/replay/reorg paths. Unit-function
+# evidence is not a native protocol PASS. No mainnet test spend is required.
+# Rollback: keep source/version and immutable chain evidence; version derived
+# projection rebuilds, checkpoint them, and do not silently rewrite history.
+# Preparation ANNOTATED; functional FAIL. Native acceptance NOT TESTED until
+# those cases pass. See the paired application handoff's
+# docs/implementation-prep-20261003-followup/PROTOCOL_GAP_WORK_PACKAGES.json.
 def update_src101_owners(db, block_index, src101_processed_in_block):
     owner_updates = []
     for src101_dict in src101_processed_in_block:
