@@ -43,7 +43,7 @@ def test_scalar_transfer_preserves_entire_identity(transfer):
 
 def test_repeated_transfer_is_scalar_and_uses_last_owner(transfer):
     later = dict(transfer, src101_owner="last-owner", src101_preowner="new-owner")
-    row, = apply([transfer, later])
+    row = apply([transfer, later])[-1]
     assert row["owner"] == "last-owner"
     assert row["preowner"] == "new-owner"
     assert type(row["owner"]) is str
@@ -51,7 +51,7 @@ def test_repeated_transfer_is_scalar_and_uses_last_owner(transfer):
 
 def test_renew_after_transfer_keeps_expiry_scalar(transfer):
     later = dict(transfer, op="RENEW", expire_timestamp=2_031_536_000)
-    row, = apply([transfer, later])
+    row = apply([transfer, later])[-1]
     assert row["expire_timestamp"] == 2_031_536_000
     assert type(row["expire_timestamp"]) is int
 
@@ -60,9 +60,11 @@ def test_mint_then_transfer_retains_image_and_clears_records(transfer):
     mint = dict(transfer, op="MINT", tokenid=["YWxpY2U="], tokenid_utf8=["alice"],
                 src101_owner="prior-owner", src101_preowner=[None],
                 txt_data={"old": "record"}, prim=True, img=["https://example.invalid/alice.png"])
-    row, = apply([mint, transfer])
+    rows = apply([mint, transfer])
+    row = rows[-1]
     assert row["owner"] == "new-owner"
-    assert row["img"] == "https://example.invalid/alice.png"
+    assert rows[0]["img"] == "https://example.invalid/alice.png"
+    assert rows[0]["replace_img"] is True and row["replace_img"] is False
     assert row["prim"] is False
     assert all(row[key] is None for key in ("address_btc", "address_eth", "txt_data"))
 
@@ -70,7 +72,7 @@ def test_mint_then_transfer_retains_image_and_clears_records(transfer):
 def test_record_then_transfer_resets_primary_and_records(transfer):
     record = dict(transfer, op="SETRECORD", txt_data={"old": "record"},
                   address_btc="old-address", address_eth="old-eth", prim=True)
-    row, = apply([record, transfer])
+    row = apply([record, transfer])[-1]
     assert row["prim"] is False
     assert all(row[key] is None for key in ("address_btc", "address_eth", "txt_data"))
 
@@ -78,7 +80,7 @@ def test_record_then_transfer_resets_primary_and_records(transfer):
 def test_transfer_then_record_updates_primary(transfer):
     record = dict(transfer, op="SETRECORD", txt_data={"new": "record"},
                   address_btc="new-address", address_eth=None, prim=True)
-    row, = apply([transfer, record])
+    row = apply([transfer, record])[-1]
     assert row["prim"] is True
     assert row["address_btc"] == "new-address"
     assert row["txt_data"] == {"new": "record"}

@@ -1111,105 +1111,37 @@ def check_src101_inputs(input_string, tx_hash, block_index):
 
 
 # TRANSFER, RENEW and SETRECORD carry scalar token identities; only MINT batches tokens.
-def update_src101_owners(db, block_index, src101_processed_in_block):
-    owner_updates = []
-    for src101_dict in src101_processed_in_block:
-        if src101_dict.get("valid") == 1 and src101_dict.get("tokenid") and src101_dict.get("deploy_hash"):
-            try:
-                owner_dict = next(
-                    (
-                        item
-                        for item in owner_updates
-                        if item["tokenid"] == src101_dict["tokenid"] and item["deploy_hash"] == src101_dict["deploy_hash"]
-                    ),
-                    None,
-                )
-                if src101_dict["op"] == "MINT":
-                    if owner_dict is None:
-                        for index in range(len(src101_dict["tokenid"])):
-                            owner_dict = {
-                                "p": src101_dict["p"],
-                                "deploy_hash": src101_dict["deploy_hash"],
-                                "tokenid": src101_dict["tokenid"][index],
-                                "tokenid_utf8": src101_dict["tokenid_utf8"][index],
-                                "owner": src101_dict["src101_owner"],
-                                "preowner": src101_dict["src101_preowner"][index],
-                                "expire_timestamp": src101_dict["expire_timestamp"],
-                                "txt_data": src101_dict["txt_data"],
-                                "address_btc": src101_dict["src101_owner"],
-                                "address_eth": None,
-                                "prim": src101_dict["prim"],
-                                "img": src101_dict["img"][index],
-                            }
-                            owner_updates.append(owner_dict)
-                    else:
-                        raise ValueError("cannot mint the same tokenid")
-                elif src101_dict["op"] == "TRANSFER":
-                    if owner_dict is None:
-                        owner_dict = {
-                            "p": src101_dict["p"],
-                            "deploy_hash": src101_dict["deploy_hash"],
-                            "tokenid": src101_dict["tokenid"],
-                            "tokenid_utf8": src101_dict["tokenid_utf8"],
-                            "img": None,
-                        }
-                        owner_updates.append(owner_dict)
-                    # A later transfer in this block must apply the same record
-                    # reset as a transfer loaded from the previous block.
-                    owner_dict.update(
-                        owner=src101_dict["src101_owner"],
-                        preowner=src101_dict["src101_preowner"],
-                        expire_timestamp=src101_dict["expire_timestamp"],
-                        txt_data=None,
-                        address_btc=None,
-                        address_eth=None,
-                        prim=False,
-                    )
-                elif src101_dict["op"] == "RENEW":
-                    if owner_dict is None:
-                        owner_dict = {
-                            "p": src101_dict["p"],
-                            "deploy_hash": src101_dict["deploy_hash"],
-                            "tokenid": src101_dict["tokenid"],
-                            "tokenid_utf8": src101_dict["tokenid_utf8"],
-                            "owner": src101_dict["src101_owner"],
-                            "expire_timestamp": src101_dict["expire_timestamp"],
-                            "preowner": src101_dict["src101_preowner"],
-                            "txt_data": src101_dict["txt_data"],
-                            "address_btc": src101_dict["address_btc"],
-                            "address_eth": src101_dict["address_eth"],
-                            "prim": src101_dict["prim"],
-                            "img": None,
-                        }
-                        owner_updates.append(owner_dict)
-                    else:
-                        owner_dict["expire_timestamp"] = src101_dict["expire_timestamp"]
-                elif src101_dict["op"] == "SETRECORD":
-                    if owner_dict is None:
-                        owner_dict = {
-                            "p": src101_dict["p"],
-                            "deploy_hash": src101_dict["deploy_hash"],
-                            "tokenid": src101_dict["tokenid"],
-                            "tokenid_utf8": src101_dict["tokenid_utf8"],
-                            "owner": src101_dict["src101_owner"],
-                            "expire_timestamp": src101_dict["expire_timestamp"],
-                            "preowner": src101_dict["src101_preowner"],
-                            "txt_data": src101_dict["txt_data"],
-                            "address_btc": src101_dict["address_btc"],
-                            "address_eth": src101_dict["address_eth"],
-                            "prim": src101_dict["prim"],
-                            "img": None,
-                        }
-                        owner_updates.append(owner_dict)
-                    else:
-                        owner_dict["txt_data"] = src101_dict["txt_data"]
-                        owner_dict["address_btc"] = src101_dict["address_btc"]
-                        owner_dict["address_eth"] = src101_dict["address_eth"]
-                        owner_dict["prim"] = src101_dict["prim"]
+def owner_updates_for_event(row):
+    """Expand one accepted operation without discarding event ordering."""
+    if row.get("valid") != 1 or not row.get("tokenid") or not row.get("deploy_hash"):
+        return []
+    op = row["op"]
+    if op not in ("MINT", "TRANSFER", "RENEW", "SETRECORD"):
+        return []
+    tokens = row["tokenid"] if op == "MINT" else [row["tokenid"]]
+    names = row["tokenid_utf8"] if op == "MINT" else [row["tokenid_utf8"]]
+    updates = []
+    for index, token in enumerate(tokens):
+        moved = op == "TRANSFER"
+        updates.append({
+            "p": row["p"], "deploy_hash": row["deploy_hash"], "tokenid": token,
+            "tokenid_utf8": names[index], "owner": row["src101_owner"],
+            "preowner": row["src101_preowner"][index] if op == "MINT" else row["src101_preowner"],
+            "expire_timestamp": row["expire_timestamp"],
+            "txt_data": None if moved else row.get("txt_data"),
+            "address_btc": row["src101_owner"] if op == "MINT" else None if moved else row.get("address_btc"),
+            "address_eth": None if op in ("MINT", "TRANSFER") else row.get("address_eth"),
+            "prim": False if moved else row.get("prim", False),
+            "img": row["img"][index] if op == "MINT" else None,
+            "replace_img": op == "MINT",
+        })
+    return updates
 
-            except Exception as e:
-                logger.error(f"Error updating SRC101 owners: {e}")
-                raise e
+
+def update_src101_owners(db, block_index, src101_processed_in_block):
+    # Primary selection clears other names at the time of each operation.
+    # Folding by token's first occurrence loses those intervening effects.
+    owner_updates = [update for row in src101_processed_in_block for update in owner_updates_for_event(row)]
     if owner_updates:
         update_owner_table(db, owner_updates, block_index)
     return owner_updates
@@ -1251,7 +1183,8 @@ def update_owner_table(db, owner_updates, block_index):
                     address_btc = new_row.address_btc,
                     address_eth = new_row.address_eth,
                     prim = new_row.prim,
-                    expire_timestamp = new_row.expire_timestamp
+                    expire_timestamp = new_row.expire_timestamp,
+                    img = {"new_row.img" if owner_dict.get("replace_img") else SRC101_OWNERS_TABLE + ".img"}
             """,
                 (
                     max_index + 1,
@@ -1295,47 +1228,19 @@ def update_owner_table(db, owner_updates, block_index):
 
 
 def get_owner_expire_data_from_running(db, processed_src101_in_block, deploy_hash, tokenid_utf8):
-    preowner = None
-    owner = None
-    expire_timestamp = None
-    address_btc = None
-    address_eth = None
-    txt_data = None
-    prim = None
-    for d in processed_src101_in_block:
-        if (
-            d
-            and d.get("tokenid_utf8")
-            and isinstance(d.get("tokenid_utf8"), list)
-            and tokenid_utf8 in d.get("tokenid_utf8")
-            and d.get("hash") == deploy_hash
-            and d.get("valid", 0) == 1
-        ):
-            preowner = d.get("src101_preowner")
-            owner = d.get("src101_owner")
-            expire_timestamp = d.get("expire_timestamp")
-            address_btc = d.get("address_btc")
-            address_eth = d.get("address_eth")
-            txt_data = json.dumps(d.get("txt_data"))
-            prim = d.get("prim")
-        elif (
-            d
-            and d.get("tokenid_utf8")
-            and isinstance(d.get("tokenid_utf8"), str)
-            and tokenid_utf8 == d.get("tokenid_utf8")
-            and d.get("hash") == deploy_hash
-            and d.get("valid", 0) == 1
-        ):
-            preowner = d.get("src101_preowner")
-            owner = d.get("src101_owner")
-            expire_timestamp = d.get("expire_timestamp")
-            address_btc = d.get("address_btc")
-            address_eth = d.get("address_eth")
-            txt_data = json.dumps(d.get("txt_data"))
-            prim = d.get("prim")
-    if owner and expire_timestamp:
-        return [preowner, owner, expire_timestamp, address_btc, address_eth, txt_data, prim]
-    return get_owner_expire_data_from_db(db, deploy_hash, tokenid_utf8)
+    state = list(get_owner_expire_data_from_db(db, deploy_hash, tokenid_utf8))
+    for row in processed_src101_in_block:
+        for update in owner_updates_for_event(row):
+            if update["deploy_hash"] != deploy_hash:
+                continue
+            # Mirror SQL NULL equality and deployment/address primary scope.
+            if update["prim"] and update["address_btc"] is not None and update["address_btc"] == state[3]:
+                state[6] = False
+            if update["tokenid_utf8"] == tokenid_utf8:
+                state = [update["preowner"], update["owner"], update["expire_timestamp"],
+                         update["address_btc"], update["address_eth"],
+                         json.dumps(update["txt_data"]) if update["txt_data"] else None, update["prim"]]
+    return state
 
 
 def get_owner_expire_data_from_db(db, deploy_hash, tokenid_utf8):
