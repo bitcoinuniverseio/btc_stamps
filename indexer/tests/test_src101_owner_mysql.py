@@ -393,17 +393,23 @@ def test_native_expired_renew_is_rejected_without_owner_change(db,offset):
 
 def test_native_expired_remint_preserves_preowner_and_replaces_image(db):
     mint(db)
+    record=parse(db,{'p':'SRC-101','op':'SETRECORD','hash':DEPLOY,'tokenid':TOKEN,
+                     'type':'txt','data':{'profile':'previous retained TXT'},'prim':'true'},HEIGHT+1)
+    assert record.get('valid') == 1, record.get('status')
+    finalize(db,HEIGHT+1,[record])
     with db.cursor() as cursor:
         cursor.execute('UPDATE SRC101Valid SET imglp=%s WHERE tx_hash=%s',('https://example.invalid/new;',DEPLOY))
     db.commit(); clear_all_caches()
     reminted=parse(db,{'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':BUYER,
                       'tokenid':[TOKEN],'dua':'1','prim':'true','sig':'','coef':'1000'},
-                   HEIGHT+1,timestamp=TIME+YEAR+1)
+                   HEIGHT+2,timestamp=TIME+YEAR+1)
     assert reminted.get('valid') == 1, reminted.get('status')
-    finalize(db,HEIGHT+1,[reminted])
+    finalize(db,HEIGHT+2,[reminted])
     assert owner(db)['preowner'] == OWNER and owner(db)['owner'] == BUYER
     assert owner(db)['img'] == reminted['img'][0]
-    assert_replay_matches(db,HEIGHT+1)
+    assert json.loads(owner(db)['txt_data']) == {'profile':'previous retained TXT'}
+    assert owner(db)['address_btc'] == BUYER and owner(db)['address_eth'] is None
+    assert_replay_matches(db,HEIGHT+2)
 
 
 @pytest.mark.parametrize('image', [None, 'https://example.invalid/'+'a'*3900+';z.png'],ids=['explicit-null','long-semicolon-url'])
@@ -486,3 +492,49 @@ def test_native_eth_signed_record_public_vector_and_rebuild(db):
              'persistedAddressEth':account.address[2:],'wirePayload':payload,
              'mainnetTransactions':0}
     Path(r'C:\universe\stampdex\audits\implementation-20261003\protocol\SRC101_ETH_PUBLIC_VECTOR.json').write_text(json.dumps(receipt,indent=2))
+
+
+@pytest.mark.parametrize('taken_first',[True,False])
+def test_native_partial_batch_mint_keeps_image_alignment(db,taken_first):
+    mint(db)
+    tokens=[TOKEN,'Ym9i'] if taken_first else ['Ym9i',TOKEN]
+    row=parse(db,{'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':BUYER,
+                  'tokenid':tokens,'dua':'1','prim':'false','sig':'','coef':'1000'},HEIGHT+1)
+    assert row.get('valid') == 1,row.get('status')
+    assert row['tokenid'] == ['Ym9i'] and row['tokenid_utf8'] == ['bob']
+    assert row['img'] == ['https://example.invalid/bob.png']
+    finalize(db,HEIGHT+1,[row])
+    assert one(db,'SELECT img FROM owners WHERE tokenid_utf8=%s',('bob',))[0] == row['img'][0]
+    assert_replay_matches(db,HEIGHT+1)
+
+
+def test_native_remint_retains_native_mint_txt_projection(db):
+    mint(db)
+    record=parse(db,{'p':'SRC-101','op':'SETRECORD','hash':DEPLOY,'tokenid':TOKEN,
+                     'type':'txt','data':{'old':'native retained text'},'prim':'false'},HEIGHT+1)
+    assert record.get('valid') == 1;finalize(db,HEIGHT+1,[record])
+    remint=parse(db,{'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':BUYER,
+                    'tokenid':[TOKEN],'dua':'1','prim':'false','sig':'','coef':'1000'},
+                 HEIGHT+2,timestamp=TIME+YEAR+2)
+    assert remint.get('valid') == 1,remint.get('status')
+    assert remint['txt_data'] == {'old':'native retained text'}
+    finalize(db,HEIGHT+2,[remint])
+    assert json.loads(owner(db)['txt_data']) == remint['txt_data']
+    assert owner(db)['address_btc'] == BUYER and owner(db)['address_eth'] is None
+    assert_replay_matches(db,HEIGHT+2)
+
+
+@pytest.mark.parametrize('op',['TRANSFER','RENEW','SETRECORD'])
+def test_native_scalar_alias_keeps_minted_identity_and_replays(db,op):
+    mint(db)
+    alias='QWxpY2U='  # Scalar decoding lowercases Alice, preserving raw base64.
+    payload={'p':'SRC-101','op':op,'hash':DEPLOY,'tokenid':alias}
+    if op=='TRANSFER':payload['toaddress']=BUYER
+    elif op=='RENEW':payload['dua']='1'
+    else:payload.update(type='txt',data={'alias':'retained canonical id'},prim='false')
+    row=parse(db,payload,HEIGHT+1)
+    assert row.get('valid') == 1,row.get('status')
+    assert row['tokenid']==alias and row['tokenid_utf8']=='alice'
+    finalize(db,HEIGHT+1,[row])
+    assert owner(db)['tokenid']==TOKEN and owner(db)['id']=='SRC-101_'+DEPLOY+'_'+TOKEN
+    assert_replay_matches(db,HEIGHT+1)

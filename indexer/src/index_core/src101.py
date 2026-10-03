@@ -631,6 +631,7 @@ class Src101Processor:
                     if tokenid_list is not None and tokenid_utf8_list is not None:
                         del tokenid_list[index]
                         del tokenid_utf8_list[index]
+                        del self.src101_dict["img"][index]
                     else:
                         logger.error(
                             f"Missing tokenid lists during mint for tx {self.src101_dict.get('tx_hash')}: "
