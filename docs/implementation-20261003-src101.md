@@ -36,6 +36,10 @@ The parser writes component_name='stamps_indexer' in node_version_history; extra
 {schema:'stamps-parser-source-v1', build_id:string|null,
  source_digest_sha256:hex, source_files:{'indexer/src/<file.py>':sha256},
  effective_protocol:{activations:{CONFIG_BLOCK_CONSTANT:integer},
+   bitcoin_network:bitcoin.params.NAME, parser_start_height:config.BLOCK_FIRST,
+   configured_start_heights:{mainnet:BLOCK_FIRST_MAINNET,testnet:BLOCK_FIRST_TESTNET,regtest:BLOCK_FIRST_REGTEST},
+   validation:{skip_rebuild_balances:DEBUG_SKIP_REBUILD_BALANCES,debug_validation:DEBUG_VALIDATION,
+     validation_mode:VALIDATION_MODE,rust_parser_disabled:DISABLE_RUST_PARSER},
    testnet:config.TESTNET, regtest:config.REGTEST,
    network_profile:STAMPS_NETWORK|null,
    signet_challenge:STAMPS_SIGNET_CHALLENGE|null}}
