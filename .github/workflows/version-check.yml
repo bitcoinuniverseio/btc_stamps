@@ -18,7 +18,8 @@ on:
 
 jobs:
   version-check:
-    runs-on: ${{ contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && fromJSON('["self-hosted","universe-runners-1"]') || 'ubuntu-24.04' }}
+    if: ${{ github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association)) }}
+    runs-on: [self-hosted, universe-runners-1]
     steps:
       - name: Checkout code
         uses: actions/checkout@v5

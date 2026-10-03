@@ -31,8 +31,8 @@ permissions:
 jobs:
   changes:
     name: Detect freeze-relevant changes
-    runs-on: ${{ contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && fromJSON('["self-hosted","universe-runners-1"]') || 'ubuntu-24.04' }}
-    if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch'
+    runs-on: [self-hosted, universe-runners-1]
+    if: ${{ (github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association))) && ((github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch') }}
     permissions:
       contents: read
       pull-requests: read
@@ -57,8 +57,8 @@ jobs:
     name: Freeze Drift Check
     needs: [changes]
     # Heavy Docker build only when freeze-relevant files change (or a manual run).
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.freeze == 'true'
-    runs-on: ${{ contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && fromJSON('["self-hosted","universe-runners-1"]') || 'ubuntu-24.04' }}
+    if: ${{ (github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association))) && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.freeze == 'true') }}
+    runs-on: [self-hosted, universe-runners-1]
     steps:
       - uses: actions/checkout@v5
 
@@ -161,8 +161,8 @@ jobs:
   freeze-drift-gate:
     name: Freeze Drift Gate
     needs: [changes, freeze-drift]
-    if: always()
-    runs-on: ${{ contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop') && fromJSON('["self-hosted","universe-runners-1"]') || 'ubuntu-24.04' }}
+    if: ${{ (github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association))) && (always()) }}
+    runs-on: [self-hosted, universe-runners-1]
     steps:
       - name: Resolve gate from freeze-drift result
         env:
