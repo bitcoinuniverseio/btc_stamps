@@ -1110,19 +1110,7 @@ def check_src101_inputs(input_string, tx_hash, block_index):
         return None
 
 
-# IMPLEMENTATION-HANDOFF [PROTO-SRC101-001] -- preparation only, 2026-10-03.
-# Baseline: bitcoinuniverseio/btc_stamps@8666d779d23caf418edb2c78262a0338b7314b7f.
-# FAIL (isolated source reproduction): _process_tokenid_value preserves scalar
-# TRANSFER tokenid/tokenid_utf8. The new TRANSFER loop below treats those strings
-# as arrays; YWxpY2U= / alice raises IndexError before the owner writer runs.
-# Required repair: retain the existing scalar transfer contract and write one
-# intact owner row. Do not invent array transfers or run an ownership backfill.
-# Validate full raw parsing, prior-block ownership/expiry, database commit and
-# rollback, repeated same-block operations, and reorg replay with exact identities.
-# Official comparison: stampchain-io/btc_stamps 1.9.5 at
-# 8a7365bf951a66f3a5e25dc15e8702f65b5d23d8. This is no blanket upgrade request.
-# Deployed runtime and native lifecycle: BLOCKED / unobserved, server unavailable.
-# Plan and evidence: docs/implementation-prep-20261003-stampdex/WORK_PACKAGES.md.
+# TRANSFER, RENEW and SETRECORD carry scalar token identities; only MINT batches tokens.
 def update_src101_owners(db, block_index, src101_processed_in_block):
     owner_updates = []
     for src101_dict in src101_processed_in_block:
@@ -1158,29 +1146,25 @@ def update_src101_owners(db, block_index, src101_processed_in_block):
                         raise ValueError("cannot mint the same tokenid")
                 elif src101_dict["op"] == "TRANSFER":
                     if owner_dict is None:
-                        # A TRANSFER carries tokenid as a list; expand one
-                        # owner row per tokenid like the MINT branch, otherwise
-                        # update_owner_table concatenates a list into its id
-                        # string and the block wedges in a rollback loop.
-                        for index in range(len(src101_dict["tokenid"])):
-                            owner_dict = {
-                                "p": src101_dict["p"],
-                                "deploy_hash": src101_dict["deploy_hash"],
-                                "tokenid": src101_dict["tokenid"][index],
-                                "tokenid_utf8": src101_dict["tokenid_utf8"][index],
-                                "owner": src101_dict["src101_owner"],
-                                "preowner": src101_dict["src101_preowner"],
-                                "expire_timestamp": src101_dict["expire_timestamp"],
-                                "txt_data": None,
-                                "address_btc": None,
-                                "address_eth": None,
-                                "prim": False,
-                                "img": None,
-                            }
-                            owner_updates.append(owner_dict)
-                    else:
-                        owner_dict["owner"] = (src101_dict["src101_owner"],)
-                        owner_dict["preowner"] = src101_dict["src101_preowner"]
+                        owner_dict = {
+                            "p": src101_dict["p"],
+                            "deploy_hash": src101_dict["deploy_hash"],
+                            "tokenid": src101_dict["tokenid"],
+                            "tokenid_utf8": src101_dict["tokenid_utf8"],
+                            "img": None,
+                        }
+                        owner_updates.append(owner_dict)
+                    # A later transfer in this block must apply the same record
+                    # reset as a transfer loaded from the previous block.
+                    owner_dict.update(
+                        owner=src101_dict["src101_owner"],
+                        preowner=src101_dict["src101_preowner"],
+                        expire_timestamp=src101_dict["expire_timestamp"],
+                        txt_data=None,
+                        address_btc=None,
+                        address_eth=None,
+                        prim=False,
+                    )
                 elif src101_dict["op"] == "RENEW":
                     if owner_dict is None:
                         owner_dict = {
@@ -1199,7 +1183,7 @@ def update_src101_owners(db, block_index, src101_processed_in_block):
                         }
                         owner_updates.append(owner_dict)
                     else:
-                        owner_dict["expire_timestamp"] = (src101_dict["expire_timestamp"],)
+                        owner_dict["expire_timestamp"] = src101_dict["expire_timestamp"]
                 elif src101_dict["op"] == "SETRECORD":
                     if owner_dict is None:
                         owner_dict = {
@@ -1221,6 +1205,7 @@ def update_src101_owners(db, block_index, src101_processed_in_block):
                         owner_dict["txt_data"] = src101_dict["txt_data"]
                         owner_dict["address_btc"] = src101_dict["address_btc"]
                         owner_dict["address_eth"] = src101_dict["address_eth"]
+                        owner_dict["prim"] = src101_dict["prim"]
 
             except Exception as e:
                 logger.error(f"Error updating SRC101 owners: {e}")

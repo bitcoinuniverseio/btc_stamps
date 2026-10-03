@@ -412,6 +412,9 @@ def insert_into_src101_table(cursor, table_name, id, src101_dict):
         "mintstart",
         "mintend",
         "prim",
+        "address_btc",
+        "address_eth",
+        "txt_data",
         "owner",
         "toaddress",
         "destination",
@@ -460,6 +463,9 @@ def insert_into_src101_table(cursor, table_name, id, src101_dict):
         src101_dict.get("mintstart"),
         src101_dict.get("mintend"),
         src101_dict.get("prim"),
+        src101_dict.get("address_btc"),
+        src101_dict.get("address_eth"),
+        json.dumps(src101_dict.get("txt_data")) if src101_dict.get("txt_data") else None,
         src101_dict.get("owner"),
         src101_dict.get("toaddress"),
         src101_dict.get("destination"),
@@ -780,6 +786,7 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
             if id in all_owners:
                 all_owners[id]["preowner"] = all_owners[id]["owner"]
                 all_owners[id]["owner"] = toaddress
+                all_owners[id]["prim"] = False
                 all_owners[id]["address_btc"] = None
                 all_owners[id]["address_eth"] = None
                 all_owners[id]["txt_data"] = None
@@ -2678,6 +2685,20 @@ def apply_schema_updates(db, cursor):
     # Format: {table_name: {columns: [(name, type, comment)], indexes: [(name, columns)]}}
     # NOTE: This only handles additions. For removals/modifications, manual intervention is required.
     schema_updates = {
+        # Bound all/valid transaction observation to one block and txid.
+        # SRC20Valid already has this prefix in idx_src20_common_lookup.
+        "SRC20": {
+            "columns": [],
+            "indexes": [("idx_src20_block_tx", ["block_index", "tx_hash"])],
+        },
+        "SRC101": {
+            "columns": [],
+            "indexes": [("idx_src101_block_tx", ["block_index", "tx_hash"])],
+        },
+        "SRC101Valid": {
+            "columns": [],
+            "indexes": [("idx_src101valid_block_tx", ["block_index", "tx_hash"])],
+        },
         "transactions": {
             "columns": [
                 ("fee_rate_sat_vb", "DECIMAL(10,2)", "Fee rate in satoshis per virtual byte"),
