@@ -230,3 +230,95 @@ def test_native_reorg_retained_transfer_resets_primary(db):
     database.purge_block_db(db,HEIGHT+2)
     database.rebuild_owners(db,HEIGHT+1)
     assert owner(db)['prim'] == 0
+
+
+@pytest.mark.parametrize('selection', ['MINT', 'SETRECORD'])
+def test_native_two_name_primary_replay_matches_live(db, selection):
+    mint(db, primary=True)
+    bob = 'Ym9i'
+    row = parse(db, {'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':OWNER,
+                     'tokenid':[bob],'dua':'1','prim':'true' if selection == 'MINT' else 'false',
+                     'sig':'','coef':'1000'}, HEIGHT+1)
+    assert row.get('valid') == 1, row.get('status')
+    finalize(db, HEIGHT+1, [row])
+    retained_height = HEIGHT+1
+    if selection == 'SETRECORD':
+        selected = parse(db, {'p':'SRC-101','op':'SETRECORD','hash':DEPLOY,'tokenid':bob,
+                             'type':'address','data':{'btc':OWNER},'prim':'true'}, HEIGHT+2)
+        assert selected.get('valid') == 1, selected.get('status')
+        finalize(db, HEIGHT+2, [selected])
+        retained_height = HEIGHT+2
+    with db.cursor() as cursor:
+        cursor.execute('SELECT tokenid,prim,address_btc FROM owners ORDER BY tokenid')
+        retained = cursor.fetchall()
+    assert sum(row[1] for row in retained) == 1
+    later = transfer(db, retained_height+1)
+    finalize(db, retained_height+1, [later])
+    database.purge_block_db(db, retained_height+1)
+    database.rebuild_owners(db, retained_height)
+    with db.cursor() as cursor:
+        cursor.execute('SELECT tokenid,prim,address_btc FROM owners ORDER BY tokenid')
+        assert cursor.fetchall() == retained
+
+
+@pytest.mark.parametrize('field,corrupted', [
+    ('prim', 0), ('address_btc', BUYER), ('address_eth', 'corrupted-fixture'),
+    ('txt_data', '{"profile":"corrupted fixture"}'),
+])
+def test_native_record_only_projection_drift_is_rebuilt(db, field, corrupted):
+    mint(db, primary=True)
+    record = parse(db, {'p':'SRC-101','op':'SETRECORD','hash':DEPLOY,'tokenid':TOKEN,
+                       'type':'txt','data':{'profile':'retained fixture'},'prim':'true'}, HEIGHT+1)
+    assert record.get('valid') == 1, record.get('status')
+    finalize(db, HEIGHT+1, [record])
+    retained = owner(db)
+    with db.cursor() as cursor:
+        cursor.execute(f'UPDATE owners SET `{field}`=%s WHERE deploy_hash=%s AND tokenid=%s',
+                       (corrupted, DEPLOY, TOKEN))
+    db.commit()
+    with db.cursor() as cursor:
+        existing = database.get_existing_owners(cursor)
+        history = database.get_src101_valid_list(cursor, HEIGHT+1)
+    calculated = database.calculate_owners(db, history)
+    assert database.owners_need_update(existing, calculated)
+    database.rebuild_owners(db, HEIGHT+1)
+    rebuilt = owner(db)
+    for key in ('owner','preowner','prim','address_btc','address_eth','txt_data','expire_timestamp','last_update'):
+        assert rebuilt[key] == retained[key], key
+
+
+def test_native_missing_historical_records_blocks_destructive_rebuild(db):
+    mint(db, primary=True)
+    record = parse(db, {'p':'SRC-101','op':'SETRECORD','hash':DEPLOY,'tokenid':TOKEN,
+                       'type':'txt','data':{'profile':'retain without guessing'},'prim':'true'}, HEIGHT+1)
+    assert record.get('valid') == 1, record.get('status')
+    finalize(db, HEIGHT+1, [record])
+    retained = owner(db)
+    with db.cursor() as cursor:
+        cursor.execute('UPDATE SRC101Valid SET address_btc=NULL,address_eth=NULL,txt_data=NULL WHERE tx_hash=%s',
+                       (record['tx_hash'],))
+    db.commit()
+    with pytest.raises(ValueError, match='history is incomplete; reparse the actual chain'):
+        database.rebuild_owners(db, HEIGHT+1)
+    assert owner(db) == retained
+
+
+def test_native_primary_replay_forgets_transferred_address(db):
+    mint(db, primary=True)
+    moved = transfer(db, HEIGHT+1)
+    finalize(db, HEIGHT+1, [moved])
+    selected = parse(db, {'p':'SRC-101','op':'SETRECORD','hash':DEPLOY,'tokenid':TOKEN,
+                         'type':'address','data':{'btc':BUYER},'prim':'true'}, HEIGHT+2, creator=BUYER)
+    assert selected.get('valid') == 1, selected.get('status')
+    finalize(db, HEIGHT+2, [selected])
+    bob = parse(db, {'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':OWNER,
+                     'tokenid':['Ym9i'],'dua':'1','prim':'true','sig':'','coef':'1000'}, HEIGHT+3)
+    assert bob.get('valid') == 1, bob.get('status')
+    finalize(db, HEIGHT+3, [bob])
+    with db.cursor() as cursor:
+        existing = database.get_existing_owners(cursor)
+        history = database.get_src101_valid_list(cursor, HEIGHT+3)
+    calculated = database.calculate_owners(db, history)
+    assert sum(row[9] for row in existing) == 2
+    assert sum(row['prim'] for row in calculated.values()) == 2
+    assert not database.owners_need_update(existing, calculated)
