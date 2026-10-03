@@ -47,7 +47,7 @@ jobs:
   changes:
     name: Detect reparse-relevant changes
     runs-on: [self-hosted, universe-runners-1]
-    if: (github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch'
+    if: ${{ (github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association))) && ((github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'dev' || github.base_ref == 'main')) || github.event_name == 'workflow_dispatch') }}
     permissions:
       contents: read
       pull-requests: read
@@ -75,7 +75,7 @@ jobs:
     name: Reparse Consensus Validation (${{ matrix.python-version }})
     needs: [changes]
     # Heavy reparse only when consensus-surface files change (or a manual run).
-    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.reparse == 'true'
+    if: ${{ (github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association))) && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.reparse == 'true') }}
     runs-on: [self-hosted, universe-runners-1]
     # NOTE (#907): continue-on-error removed — a genuine reparse failure must go
     # red so this gate can be made required. The deliberate scope exclusions
@@ -175,7 +175,7 @@ jobs:
   reparse-validate-gate:
     name: Reparse Consensus Validation Gate
     needs: [changes, reparse-validate]
-    if: always()
+    if: ${{ (github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association))) && (always()) }}
     runs-on: [self-hosted, universe-runners-1]
     steps:
       - name: Resolve gate from reparse matrix result

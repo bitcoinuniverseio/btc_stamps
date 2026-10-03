@@ -2,6 +2,28 @@
 
 Scope: bitcoinuniverseio/btc_stamps isolated implementation based on de1aecbedb6decb9aff521669f739c6c85b0d2bc (custom main8666d779d23caf418edb2c78262a0338b7314b7f). Production deployment remains unobserved/unchanged. Native parser/MySQL fixtures exercise actual Python parser, block finalization and rebuild, with synthetic chain rows. They do not establish public-network transaction or wallet acceptance.
 
+## Local checkpoint and CI reconciliation
+
+The isolated continuation starts from `172a67730ef124e2caf01181ab5a9fd87d260c09`.
+It retains `c57ca94439f262cde21e27bf0b7fe5b9ec5d425a` and the later ordered-record,
+image and source-attestation repairs. A pending local merge retains develop's
+CI-only commit `8da9dd3d61d4549589972baf436020c37b165a4b`. No parser implementation
+from that commit replaces the owned updater.
+
+All concrete jobs select `[self-hosted, universe-runners-1]`. The routing guard
+rejects fork pull requests. Comment/review/issue jobs also require OWNER or
+MEMBER association. Existing job conditions and steps remain. The Docker
+auto-publish job retains host tools pinned to
+`c9bb29ab2b39ea95dcc430fda80416deb2c4eb85`. Hosted fallback does not satisfy this
+task's runner contract. Actual admitted runner execution remains unverified.
+
+Both `PROTO-SRC101-001` and `SDX28-PROTO-08` source annotations remain as historical
+requirements. Their restored comments change the source digest; accepted build
+metadata must bind the final bytes. They do not change the Python AST or grant
+native acceptance. The focused local owner, attestation and version-tracking
+tests passed 30 cases. No database write, service change, public-network journey
+or release ran during this reconciliation.
+
 ## SQL history and projection
 
 SRC101 contains all parsed operations; SRC101Valid contains accepted operations. Read a completed `blocks.indexed=1` snapshot and independently verify transaction block and checkpoint against the owned Bitcoin node. Use ordered `(block_index,tx_index)` history. `node_version_history` is parser metadata, not chain identity.
