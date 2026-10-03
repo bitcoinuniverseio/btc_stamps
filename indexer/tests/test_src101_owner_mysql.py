@@ -93,6 +93,14 @@ def transfer(db, height, *, creator=OWNER, destination=BUYER, sequence=1, prior=
                  height, sequence=sequence, creator=creator, timestamp=timestamp, prior=prior)
 
 
+@pytest.fixture(scope="module", autouse=True)
+def forward_schema():
+    connection = connect()
+    with connection.cursor() as cursor:
+        database.apply_schema_updates(connection, cursor)
+    connection.close()
+
+
 @pytest.fixture
 def db():
     connection = connect()
@@ -322,3 +330,159 @@ def test_native_primary_replay_forgets_transferred_address(db):
     assert sum(row[9] for row in existing) == 2
     assert sum(row['prim'] for row in calculated.values()) == 2
     assert not database.owners_need_update(existing, calculated)
+
+
+def owner_snapshot(db):
+    with db.cursor() as cursor:
+        cursor.execute('SELECT tokenid,owner,preowner,expire_timestamp,address_btc,address_eth,txt_data,prim,img,last_update,id,`index` FROM owners ORDER BY tokenid')
+        return cursor.fetchall()
+
+
+def assert_replay_matches(db, height):
+    retained = owner_snapshot(db)
+    with db.cursor() as cursor:
+        cursor.execute('UPDATE owners SET last_update=0')
+    db.commit()
+    database.rebuild_owners(db, height)
+    assert owner_snapshot(db) == retained
+
+
+@pytest.mark.parametrize('last_op', ['SETRECORD', 'TRANSFER', 'RENEW'])
+def test_native_same_block_primary_event_order(db, last_op):
+    a = parse(db, {'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':OWNER,
+                   'tokenid':[TOKEN],'dua':'1','prim':'true','sig':'','coef':'1000'}, HEIGHT)
+    b = parse(db, {'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':OWNER,
+                   'tokenid':['Ym9i'],'dua':'1','prim':'true','sig':'','coef':'1000'}, HEIGHT, sequence=2, prior=[a])
+    if last_op == 'SETRECORD':
+        payload = {'p':'SRC-101','op':'SETRECORD','hash':DEPLOY,'tokenid':TOKEN,
+                   'type':'address','data':{'btc':OWNER},'prim':'true'}
+    elif last_op == 'TRANSFER':
+        payload = {'p':'SRC-101','op':'TRANSFER','hash':DEPLOY,'tokenid':'Ym9i','toaddress':BUYER}
+    else:
+        payload = {'p':'SRC-101','op':'RENEW','hash':DEPLOY,'tokenid':TOKEN,'dua':'1'}
+    last = parse(db,payload,HEIGHT,sequence=3,prior=[a,b])
+    assert all(row.get('valid') == 1 for row in (a,b,last)), [row.get('status') for row in (a,b,last)]
+    finalize(db,HEIGHT,[a,b,last])
+    primaries = one(db,'SELECT GROUP_CONCAT(tokenid_utf8 ORDER BY tokenid_utf8) FROM owners WHERE prim=1')[0]
+    assert primaries == {'SETRECORD':'alice','TRANSFER':None,'RENEW':'bob'}[last_op]
+    assert_replay_matches(db,HEIGHT)
+
+
+def test_native_running_transfer_resets_records_before_renew(db):
+    mint(db,primary=True)
+    moved=transfer(db,HEIGHT+1)
+    renewed=parse(db,{'p':'SRC-101','op':'RENEW','hash':DEPLOY,'tokenid':TOKEN,'dua':'1'},
+                  HEIGHT+1,sequence=2,creator=BUYER,prior=[moved])
+    assert renewed['valid'] == 1
+    assert renewed['address_btc'] is None and renewed['txt_data'] is None and not renewed['prim']
+    finalize(db,HEIGHT+1,[moved,renewed])
+    assert_replay_matches(db,HEIGHT+1)
+
+
+@pytest.mark.parametrize('offset',[0,99])
+def test_native_expired_renew_is_rejected_without_owner_change(db,offset):
+    mint(db)
+    retained=owner_snapshot(db)
+    renewed=parse(db,{'p':'SRC-101','op':'RENEW','hash':DEPLOY,'tokenid':TOKEN,'dua':'1'},
+                  HEIGHT+1,timestamp=TIME+YEAR+offset)
+    assert renewed.get('valid') != 1 and 'EXPIRE TIME' in renewed.get('status','')
+    finalize(db,HEIGHT+1,[renewed])
+    assert owner_snapshot(db) == retained
+    assert_replay_matches(db,HEIGHT+1)
+
+
+def test_native_expired_remint_preserves_preowner_and_replaces_image(db):
+    mint(db)
+    with db.cursor() as cursor:
+        cursor.execute('UPDATE SRC101Valid SET imglp=%s WHERE tx_hash=%s',('https://example.invalid/new;',DEPLOY))
+    db.commit(); clear_all_caches()
+    reminted=parse(db,{'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':BUYER,
+                      'tokenid':[TOKEN],'dua':'1','prim':'true','sig':'','coef':'1000'},
+                   HEIGHT+1,timestamp=TIME+YEAR+1)
+    assert reminted.get('valid') == 1, reminted.get('status')
+    finalize(db,HEIGHT+1,[reminted])
+    assert owner(db)['preowner'] == OWNER and owner(db)['owner'] == BUYER
+    assert owner(db)['img'] == reminted['img'][0]
+    assert_replay_matches(db,HEIGHT+1)
+
+
+@pytest.mark.parametrize('image', [None, 'https://example.invalid/'+'a'*3900+';z.png'],ids=['explicit-null','long-semicolon-url'])
+def test_native_exact_mint_image_history_and_rebuild(db,image):
+    with db.cursor() as cursor:
+        cursor.execute('UPDATE SRC101Valid SET imglp=NULL,imgf=NULL WHERE tx_hash=%s',(DEPLOY,))
+    db.commit(); clear_all_caches()
+    payload={'p':'SRC-101','op':'MINT','hash':DEPLOY,'toaddress':OWNER,
+             'tokenid':[TOKEN],'dua':'1','prim':'false','sig':'','coef':'1000'}
+    if image is not None: payload['img']=[image]
+    row=parse(db,payload,HEIGHT)
+    assert row.get('valid') == 1, row.get('status')
+    assert row['img'] == [image]
+    finalize(db,HEIGHT,[row])
+    assert json.loads(one(db,'SELECT mint_img FROM SRC101Valid WHERE tx_hash=%s',(row['tx_hash'],))[0]) == [image]
+    assert owner(db)['img'] == image
+    assert_replay_matches(db,HEIGHT)
+    retained=owner_snapshot(db)
+    with db.cursor() as cursor:
+        cursor.execute('UPDATE SRC101Valid SET mint_img=NULL WHERE tx_hash=%s',(row['tx_hash'],))
+    db.commit()
+    with pytest.raises(ValueError,match='MINT image history is incomplete'):
+        database.rebuild_owners(db,HEIGHT)
+    assert owner_snapshot(db) == retained
+
+
+def test_native_rebuild_insert_failure_rolls_back_owner_deletion(db,monkeypatch):
+    mint(db)
+    with db.cursor() as cursor: cursor.execute('UPDATE owners SET last_update=0')
+    db.commit();retained=owner_snapshot(db)
+    def fail(*args): raise RuntimeError('injected rebuild insertion failure')
+    monkeypatch.setattr(database,'insert_owners',fail)
+    with pytest.raises(RuntimeError,match='injected rebuild'):
+        database.rebuild_owners(db,HEIGHT)
+    assert owner_snapshot(db) == retained
+
+
+def test_native_parser_build_metadata_same_version_history(db,monkeypatch):
+    from index_core.source_attestation import collect_indexer_source_metadata
+    from index_core import node_health
+    with db.cursor() as cursor: cursor.execute("DELETE FROM node_version_history WHERE component_name='stamps_indexer'")
+    db.commit()
+    monkeypatch.setenv('STAMPS_APPROVED_BUILD_ID','stampdex-src101-native-candidate')
+    first=collect_indexer_source_metadata()
+    database.upsert_node_version(db,'stamps_indexer','1.9.3',extra_info=first)
+    database.upsert_node_version(db,'stamps_indexer','1.9.3',extra_info=first)
+    assert one(db,"SELECT COUNT(*) FROM node_version_history WHERE component_name='stamps_indexer'") == (1,)
+    second=dict(first,build_id='stampdex-src101-native-candidate-2')
+    database.upsert_node_version(db,'stamps_indexer','1.9.3',extra_info=second)
+    assert one(db,"SELECT COUNT(*) FROM node_version_history WHERE component_name='stamps_indexer'") == (2,)
+    assert one(db,"SELECT COUNT(*) FROM node_version_history WHERE component_name='stamps_indexer' AND superseded_at IS NULL") == (1,)
+    reopened=connect()
+    from index_core.database_manager import db_manager
+    monkeypatch.setattr(db_manager,'connect',lambda:reopened)
+    node_health.persist_indexer_version()
+    latest=one(db,"SELECT extra_info FROM node_version_history WHERE component_name='stamps_indexer' AND superseded_at IS NULL")[0]
+    db.rollback()
+    latest=one(db,"SELECT extra_info FROM node_version_history WHERE component_name='stamps_indexer' AND superseded_at IS NULL")[0]
+    assert json.loads(latest) == first
+
+
+def test_native_eth_signed_record_public_vector_and_rebuild(db):
+    from eth_account import Account
+    from eth_account.messages import encode_defunct
+    from pathlib import Path
+    mint(db)
+    account=Account.create()
+    # Public message matches the previous txid of vin0 in this fixture.
+    message='11'*32
+    signature=bytes(account.sign_message(encode_defunct(text=message)).signature).hex()
+    payload={'p':'SRC-101','op':'SETRECORD','hash':DEPLOY,'tokenid':TOKEN,
+             'type':'address','data':{'btc':OWNER,'eth':signature},'prim':'true'}
+    row=parse(db,payload,HEIGHT+1)
+    assert row.get('valid') == 1, row.get('status')
+    finalize(db,HEIGHT+1,[row])
+    assert owner(db)['address_eth'] == account.address[2:]
+    assert_replay_matches(db,HEIGHT+1)
+    receipt={'classification':'native parser/MySQL fixture; no chain transaction',
+             'messageText':message,'signatureHex':signature,'recoveredAddress':account.address,
+             'persistedAddressEth':account.address[2:],'wirePayload':payload,
+             'mainnetTransactions':0}
+    Path(r'C:\universe\stampdex\audits\implementation-20261003\protocol\SRC101_ETH_PUBLIC_VECTOR.json').write_text(json.dumps(receipt,indent=2))

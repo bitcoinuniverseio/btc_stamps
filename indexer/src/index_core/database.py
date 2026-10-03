@@ -395,6 +395,7 @@ def insert_into_src101_table(cursor, table_name, id, src101_dict):
         "tokenid_origin",
         "tokenid",
         "tokenid_utf8",
+        "mint_img",
         "root",
         "description",
         "tick",
@@ -446,6 +447,7 @@ def insert_into_src101_table(cursor, table_name, id, src101_dict):
             if type(src101_dict.get("tokenid_utf8")) == list
             else src101_dict.get("tokenid_utf8")
         ),
+        json.dumps(src101_dict.get("img")) if src101_dict.get("op") == "MINT" else None,
         src101_dict.get("root"),
         src101_dict.get("desc"),
         src101_dict.get("tick"),
@@ -693,7 +695,7 @@ def get_existing_owners(cursor: Cursor) -> List[Tuple[Any, ...]]:
 def get_src101_valid_list(cursor: Cursor, block_index: Optional[int] = None) -> List[Tuple[Any, ...]]:
     """Get valid SRC-101 transactions up to the specified block index."""
     query = f"""
-    SELECT op, tokenid, tokenid_utf8, img, deploy_hash, creator, dua, toaddress, prim,
+    SELECT op, tokenid, tokenid_utf8, CAST(mint_img AS CHAR), deploy_hash, creator, dua, toaddress, prim,
            address_btc, address_eth, txt_data, block_time, block_index, tx_index
     FROM {SRC101_VALID_TABLE}
     WHERE (op = 'TRANSFER' OR op = 'MINT' OR op = 'SETRECORD' OR op = 'RENEW')
@@ -763,18 +765,18 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
         block_index,
         tx_index,
     ] in src101_valid_list:
-        id = "SRC-101" + "_" + deploy_hash + (tokenid or "")
+        id = "SRC-101" + "_" + deploy_hash + "_" + (tokenid or "")
 
         if op == "MINT":
             tokenid_split = (tokenid or "").split(";")
             tokenid_utf8_split = (tokenid_utf8 or "").split(";")
-            if img is not None:
-                img_split = img.split(";")
-            else:
-                img_split = []
-                _, _, _, _, _, _, imglp, imgf, _ = get_src101_deploy(db, deploy_hash, {})
-                for i in range(len(tokenid_utf8_split)):
-                    img_split.append(str(imglp or "") + tokenid_utf8_split[i] + "." + str(imgf or ""))
+            if img is None:
+                raise ValueError("SRC-101 MINT image history is incomplete; reparse the actual chain before rebuilding owners")
+            img_split = json.loads(img)
+            if not isinstance(img_split, list) or len(img_split) != len(tokenid_split):
+                raise ValueError("SRC-101 MINT image history does not match token order")
+            if not all(value is None or isinstance(value, str) for value in img_split):
+                raise ValueError("SRC-101 MINT image history contains an invalid image value")
 
             max_length = max(len(tokenid_split), len(tokenid_utf8_split), len(img_split))
             tokenid_split = tokenid_split + [""] * (max_length - len(tokenid_split))
@@ -783,17 +785,20 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
 
             for i in range(max_length):
                 _index = all_index.get(deploy_hash, 0)
-                id = "SRC-101" + "_" + deploy_hash + tokenid_split[i]
+                id = "SRC-101" + "_" + deploy_hash + "_" + tokenid_split[i]
+                previous = all_owners.get(id, {})
+                previous_owner = previous.get("owner")
+                owner_index = previous.get("index", _index + 1)
                 forget_primary(id)
                 all_owners[id] = {
-                    "index": _index + 1,
+                    "index": owner_index,
                     "id": id,
                     "p": "SRC-101",
                     "deploy_hash": deploy_hash,
                     "tokenid": tokenid_split[i],
                     "tokenid_uft8": tokenid_utf8_split[i],
                     "img": img_split[i],
-                    "preowner": None,
+                    "preowner": previous_owner,
                     "owner": toaddress,
                     "prim": prim,
                     "address_btc": toaddress,
@@ -802,10 +807,10 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
                     "expire_timestamp": 31536000 * dua + int(block_time.timestamp()),
                     "last_update": block_index,
                 }
-                all_index[deploy_hash] = _index + 1
+                all_index[deploy_hash] = max(_index, owner_index)
                 select_primary(id)
         elif op == "TRANSFER":
-            id = "SRC-101" + "_" + deploy_hash + tokenid
+            id = "SRC-101" + "_" + deploy_hash + "_" + tokenid
             if id in all_owners:
                 forget_primary(id)
                 all_owners[id]["preowner"] = all_owners[id]["owner"]
@@ -824,7 +829,7 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
                 raise ValueError(
                     "SRC-101 SETRECORD history is incomplete; reparse the actual chain before rebuilding owners"
                 )
-            id = "SRC-101" + "_" + deploy_hash + tokenid
+            id = "SRC-101" + "_" + deploy_hash + "_" + tokenid
             if id in all_owners:
                 forget_primary(id)
                 all_owners[id]["prim"] = prim
@@ -836,9 +841,9 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
             else:
                 logger.warning("Unexpected situations, there is no mint but can be transferred transactions")
         elif op == "RENEW":
-            id = "SRC-101" + "_" + deploy_hash + tokenid
+            id = "SRC-101" + "_" + deploy_hash + "_" + tokenid
             if id in all_owners:
-                all_owners[id]["expire_timestamp"] = all_owners[id]["expire_timestamp"] + 31536000 * dua
+                all_owners[id]["expire_timestamp"] = max(all_owners[id]["expire_timestamp"], int(block_time.timestamp())) + 31536000 * dua
                 all_owners[id]["last_update"] = block_index
             else:
                 logger.warning("Unexpected situations, there is no mint but can be transferred transactions")
@@ -927,7 +932,7 @@ def owners_need_update(existing_owners, all_owners):
 
             owner_tuple = (
                 owner[3], owner[4], owner[8], owner[14] or 0,
-                owner[7], owner[13], bool(owner[9]), owner[10], owner[11], canonical_txt(owner[12]),
+                owner[7], owner[13], bool(owner[9]), owner[10], owner[11], canonical_txt(owner[12]), owner[6], owner[0], owner[1],
             )
             existing_set.add(owner_tuple)
 
@@ -937,7 +942,7 @@ def owners_need_update(existing_owners, all_owners):
             owner_tuple = (
                 value["deploy_hash"], value["tokenid"], value["owner"], value.get("last_update", 0),
                 value.get("preowner"), value.get("expire_timestamp"), bool(value.get("prim")),
-                value.get("address_btc"), value.get("address_eth"), canonical_txt(value.get("txt_data")),
+                value.get("address_btc"), value.get("address_eth"), canonical_txt(value.get("txt_data")), value.get("img"), value.get("index"), value.get("id"),
             )
             new_set.add(owner_tuple)
 
@@ -1004,7 +1009,7 @@ def insert_balances(cursor, all_balances):
 def purge_owners(cursor):
     """Purge the owners table"""
     logger.warning("Purging owners table")
-    cursor.execute("TRUNCATE TABLE owners")
+    cursor.execute("DELETE FROM owners")
 
 
 def insert_owners(cursor, all_owners):
@@ -2732,12 +2737,16 @@ def apply_schema_updates(db, cursor):
             "indexes": [("idx_src20_block_tx", ["block_index", "tx_hash"])],
         },
         "SRC101": {
-            "columns": [],
+            "columns": [("mint_img", "JSON", "Exact parsed MINT image array; NULL means legacy history")],
             "indexes": [("idx_src101_block_tx", ["block_index", "tx_hash"])],
         },
         "SRC101Valid": {
-            "columns": [],
+            "columns": [("mint_img", "JSON", "Exact parsed MINT image array; NULL means legacy history")],
             "indexes": [("idx_src101valid_block_tx", ["block_index", "tx_hash"])],
+        },
+        "owners": {
+            "columns": [], "indexes": [],
+            "modifications": [("img", "VARCHAR(4096) COLLATE utf8mb4_bin NULL", "varchar(4096)")],
         },
         "transactions": {
             "columns": [
@@ -3099,13 +3108,16 @@ def upsert_node_version(
     cursor = db.cursor()
     try:
         cursor.execute(
-            "SELECT id, version_string FROM node_version_history "
+            "SELECT id, version_string, extra_info FROM node_version_history "
             "WHERE component_name = %s AND is_current = TRUE FOR UPDATE",
             (component_name,),
         )
         existing = cursor.fetchone()
 
-        if existing and existing[1] == version_string:
+        existing_metadata = None
+        if existing and existing[2] is not None:
+            existing_metadata = json.loads(existing[2]) if isinstance(existing[2], str) else existing[2]
+        if existing and existing[1] == version_string and existing_metadata == (extra_info or None):
             db.commit()  # Release the FOR UPDATE lock
             return False
 
