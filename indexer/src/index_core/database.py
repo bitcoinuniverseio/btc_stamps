@@ -728,6 +728,7 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
     all_owners: Dict[str, Dict[str, Any]] = {}
     all_index: Dict[str, int] = {}
     primary_by_address: Dict[Tuple[str, str], str] = {}
+    canonical_by_name: Dict[Tuple[str, str], str] = {}
 
     def forget_primary(selected_id: str) -> None:
         previous = all_owners.get(selected_id)
@@ -803,14 +804,15 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
                     "prim": prim,
                     "address_btc": toaddress,
                     "address_eth": None,
-                    "txt_data": None,
+                    "txt_data": txt_data,
                     "expire_timestamp": 31536000 * dua + int(block_time.timestamp()),
                     "last_update": block_index,
                 }
+                canonical_by_name[(deploy_hash, tokenid_utf8_split[i])] = id
                 all_index[deploy_hash] = max(_index, owner_index)
                 select_primary(id)
         elif op == "TRANSFER":
-            id = "SRC-101" + "_" + deploy_hash + "_" + tokenid
+            id = canonical_by_name.get((deploy_hash, tokenid_utf8))
             if id in all_owners:
                 forget_primary(id)
                 all_owners[id]["preowner"] = all_owners[id]["owner"]
@@ -829,7 +831,7 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
                 raise ValueError(
                     "SRC-101 SETRECORD history is incomplete; reparse the actual chain before rebuilding owners"
                 )
-            id = "SRC-101" + "_" + deploy_hash + "_" + tokenid
+            id = canonical_by_name.get((deploy_hash, tokenid_utf8))
             if id in all_owners:
                 forget_primary(id)
                 all_owners[id]["prim"] = prim
@@ -841,7 +843,7 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
             else:
                 logger.warning("Unexpected situations, there is no mint but can be transferred transactions")
         elif op == "RENEW":
-            id = "SRC-101" + "_" + deploy_hash + "_" + tokenid
+            id = canonical_by_name.get((deploy_hash, tokenid_utf8))
             if id in all_owners:
                 all_owners[id]["expire_timestamp"] = max(all_owners[id]["expire_timestamp"], int(block_time.timestamp())) + 31536000 * dua
                 all_owners[id]["last_update"] = block_index
