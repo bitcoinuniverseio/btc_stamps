@@ -725,6 +725,27 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
     """
     all_owners: Dict[str, Dict[str, Any]] = {}
     all_index: Dict[str, int] = {}
+    primary_by_address: Dict[Tuple[str, str], str] = {}
+
+    def forget_primary(selected_id: str) -> None:
+        previous = all_owners.get(selected_id)
+        if previous is not None:
+            key = (previous["deploy_hash"], previous["address_btc"])
+            if primary_by_address.get(key) == selected_id:
+                del primary_by_address[key]
+
+    def select_primary(selected_id: str) -> None:
+        selected = all_owners[selected_id]
+        # Match update_owner_table's address+deployment SQL predicate. SQL
+        # equality against NULL does not select other rows.
+        if not selected["prim"] or selected["address_btc"] is None:
+            return
+        key = (selected["deploy_hash"], selected["address_btc"])
+        previous_id = primary_by_address.get(key)
+        if previous_id is not None and previous_id != selected_id:
+            all_owners[previous_id]["prim"] = False
+        primary_by_address[key] = selected_id
+
     for [
         op,
         tokenid,
@@ -763,6 +784,7 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
             for i in range(max_length):
                 _index = all_index.get(deploy_hash, 0)
                 id = "SRC-101" + "_" + deploy_hash + tokenid_split[i]
+                forget_primary(id)
                 all_owners[id] = {
                     "index": _index + 1,
                     "id": id,
@@ -781,9 +803,11 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
                     "last_update": block_index,
                 }
                 all_index[deploy_hash] = _index + 1
+                select_primary(id)
         elif op == "TRANSFER":
             id = "SRC-101" + "_" + deploy_hash + tokenid
             if id in all_owners:
+                forget_primary(id)
                 all_owners[id]["preowner"] = all_owners[id]["owner"]
                 all_owners[id]["owner"] = toaddress
                 all_owners[id]["prim"] = False
@@ -794,13 +818,21 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
             else:
                 logger.warning("Unexpected situations, there is no mint but can be transferred transactions")
         elif op == "SETRECORD":
+            # Older writers omitted all three record columns. Rebuilding from
+            # that incomplete history would silently erase current records.
+            if address_btc is None and address_eth is None and txt_data is None:
+                raise ValueError(
+                    "SRC-101 SETRECORD history is incomplete; reparse the actual chain before rebuilding owners"
+                )
             id = "SRC-101" + "_" + deploy_hash + tokenid
             if id in all_owners:
+                forget_primary(id)
                 all_owners[id]["prim"] = prim
                 all_owners[id]["address_btc"] = address_btc if address_btc is not None else all_owners[id]["address_btc"]
                 all_owners[id]["address_eth"] = address_eth if address_eth is not None else all_owners[id]["address_eth"]
                 all_owners[id]["txt_data"] = txt_data if txt_data is not None else all_owners[id]["txt_data"]
                 all_owners[id]["last_update"] = block_index
+                select_primary(id)
             else:
                 logger.warning("Unexpected situations, there is no mint but can be transferred transactions")
         elif op == "RENEW":
@@ -876,29 +908,37 @@ def calculate_balances(src20_valid_list: List[Tuple[Any, ...]]) -> Dict[str, Dic
 
 
 def owners_need_update(existing_owners, all_owners):
-    """Compare existing owners with calculated owners"""
+    """Compare ownership and record projection fields with retained history."""
     try:
         existing_set = set()
         new_set = set()
+
+        def canonical_txt(value):
+            if value is None:
+                return None
+            decoded = json.loads(value) if isinstance(value, str) else value
+            return json.dumps(decoded, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
         # Process existing owners
         logger.info(f"Processing {len(existing_owners)} existing owners")
         for owner in existing_owners:
             if len(owner) < 15:
-                continue
+                return True
 
-            deploy_hash = owner[3]
-            tokenid = owner[4]
-            owner_address = owner[8]
-            block_index = owner[14] or 0
-
-            owner_tuple = (deploy_hash, tokenid, owner_address, block_index)
+            owner_tuple = (
+                owner[3], owner[4], owner[8], owner[14] or 0,
+                owner[7], owner[13], bool(owner[9]), owner[10], owner[11], canonical_txt(owner[12]),
+            )
             existing_set.add(owner_tuple)
 
         # Process calculated owners
         logger.info(f"Processing {len(all_owners)} calculated owners")
         for key, value in all_owners.items():
-            owner_tuple = (value["deploy_hash"], value["tokenid"], value["owner"], value.get("last_update", 0))
+            owner_tuple = (
+                value["deploy_hash"], value["tokenid"], value["owner"], value.get("last_update", 0),
+                value.get("preowner"), value.get("expire_timestamp"), bool(value.get("prim")),
+                value.get("address_btc"), value.get("address_eth"), canonical_txt(value.get("txt_data")),
+            )
             new_set.add(owner_tuple)
 
         # Log comparison details
