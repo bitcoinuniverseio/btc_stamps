@@ -14,13 +14,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional, Set
 
+import config
 from index_core.database_manager import DatabaseManager
 from index_core.fetch_utils import RateLimiter, fetch_xcp
 
 logger = logging.getLogger(__name__)
 
 # Constants
-STAMPS_GENESIS_BLOCK = 779652
+STAMPS_GENESIS_BLOCK = config.CP_STAMP_GENESIS_BLOCK
 CATCHUP_BATCH_SIZE = 100  # Number of CPIDs to process per batch
 MAX_WORKERS = 5  # Concurrent workers for catchup mode
 RATE_LIMIT = 2.0  # Requests per second to Counterparty API

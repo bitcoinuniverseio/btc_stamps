@@ -45,6 +45,7 @@ def mock_config():
     with mock.patch("index_core.server.config") as mock_cfg:
         # Set default test values
         mock_cfg.TESTNET = False
+        mock_cfg.SIGNET = False
         mock_cfg.BLOCK_FIRST = 0
         mock_cfg.BLOCK_FIRST_TESTNET = 1000
         mock_cfg.BLOCK_FIRST_REGTEST = 2000
@@ -432,6 +433,56 @@ class TestConnectToBackend:
         assert result == mock_backend
 
 
+class TestVerifyNetworkIdentity:
+    """start_all refuses to index a chain other than the configured profile."""
+
+    def _run(self, chain_info, roots):
+        import json as _json
+
+        from index_core import server
+        from network_profile import ACTIVATION_HEIGHT_KEYS, resolve_profile
+
+        profile = resolve_profile(
+            {
+                "STAMPS_NETWORK": "signet",
+                "STAMPS_SIGNET_CHALLENGE": "51",
+                "STAMPS_ACTIVATION_HEIGHTS": _json.dumps({k: 10 for k in ACTIVATION_HEIGHT_KEYS}),
+            }
+        )
+        responses = [mock.MagicMock(json=mock.MagicMock(return_value=root)) for root in roots]
+        with mock.patch.object(server.config, "NETWORK_PROFILE", profile), mock.patch.object(
+            server.config, "XCP_V2_NODES", [{"name": f"n{i}", "url": f"http://cp{i}/v2"} for i in range(len(roots))]
+        ), mock.patch.object(server, "backend_instance") as backend, mock.patch("requests.get", side_effect=responses):
+            backend.rpc.return_value = chain_info
+            server.verify_network_identity()
+            backend.rpc.assert_called_once_with("getblockchaininfo", [])
+
+    def test_matching_chain_passes(self):
+        self._run({"chain": "signet", "signet_challenge": "51"}, [{"result": {"network": "signet"}}])
+
+    def test_wrong_bitcoin_chain_fails_closed(self):
+        from exceptions import ConfigurationError
+
+        with pytest.raises(ConfigurationError):
+            self._run({"chain": "signet", "signet_challenge": "52"}, [{"result": {"network": "signet"}}])
+
+    def test_wrong_counterparty_network_fails_closed(self):
+        from exceptions import ConfigurationError
+
+        with pytest.raises(ConfigurationError):
+            self._run(
+                {"chain": "signet", "signet_challenge": "51"},
+                [{"result": {"network": "signet"}}, {"result": {"network": "mainnet"}}],
+            )
+
+
+@pytest.fixture(autouse=False)
+def _no_identity_check():
+    with mock.patch("index_core.server.verify_network_identity"):
+        yield
+
+
+@pytest.mark.usefixtures("_no_identity_check")
 class TestStartAll:
     """Test start_all function."""
 
