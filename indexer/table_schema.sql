@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS `SRC20` (
   `destination` varchar(255) COLLATE utf8mb4_bin,
   `block_time` datetime DEFAULT NULL,
   `status` varchar(255) DEFAULT NULL,
+  INDEX `idx_src20_block_tx` (`block_index`, `tx_hash`),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_ci;
 
@@ -284,6 +285,7 @@ CREATE TABLE IF NOT EXISTS `SRC101` (
   `tokenid` varchar(255) DEFAULT NULL,
   `tokenid_utf8` varchar(255) DEFAULT NULL COLLATE utf8mb4_bin,
   `img` varchar(4096) DEFAULT NULL COLLATE utf8mb4_bin,
+  `mint_img` JSON DEFAULT NULL COMMENT 'Exact parsed MINT image array; NULL means legacy history',
   `description` varchar(255),
   `tick` varchar(32),
   `imglp` varchar(255) DEFAULT NULL COLLATE utf8mb4_bin,
@@ -309,6 +311,7 @@ CREATE TABLE IF NOT EXISTS `SRC101` (
   `destination_nvalue` BIGINT UNSIGNED DEFAULT NULL,
   `block_time` datetime DEFAULT NULL,
   `status` varchar(255) DEFAULT NULL,
+  INDEX `idx_src101_block_tx` (`block_index`, `tx_hash`),
   PRIMARY KEY (`id`),
   INDEX `block_index` (`block_index`),
   INDEX `idx_deploy_hash_tokenid` (`deploy_hash`, `tokenid`),
@@ -328,6 +331,7 @@ CREATE TABLE IF NOT EXISTS `SRC101Valid` (
   `tokenid` varchar(255) DEFAULT NULL,
   `tokenid_utf8` varchar(255) DEFAULT NULL COLLATE utf8mb4_bin,
   `img` varchar(4096) DEFAULT NULL COLLATE utf8mb4_bin,
+  `mint_img` JSON DEFAULT NULL COMMENT 'Exact parsed MINT image array; NULL means legacy history',
   `description` varchar(255),
   `tick` varchar(32),
   `imglp` varchar(255) DEFAULT NULL COLLATE utf8mb4_bin,
@@ -353,6 +357,7 @@ CREATE TABLE IF NOT EXISTS `SRC101Valid` (
   `destination_nvalue` BIGINT UNSIGNED DEFAULT NULL,
   `block_time` datetime DEFAULT NULL,
   `status` varchar(255) DEFAULT NULL,
+  INDEX `idx_src101valid_block_tx` (`block_index`, `tx_hash`),
   PRIMARY KEY (`id`),
   INDEX `block_index` (`block_index`),
   INDEX `idx_deploy_hash` (`deploy_hash`),
@@ -368,7 +373,7 @@ CREATE TABLE IF NOT EXISTS `owners` (
   `deploy_hash` VARCHAR(64) NOT NULL,
   `tokenid` varchar(255) NOT NULL,
   `tokenid_utf8` varchar(255) DEFAULT NULL COLLATE utf8mb4_bin,
-  `img` varchar(255) DEFAULT NULL COLLATE utf8mb4_bin,
+  `img` varchar(4096) DEFAULT NULL COLLATE utf8mb4_bin,
   `preowner` varchar(64) COLLATE utf8mb4_bin,
   `owner` varchar(64) COLLATE utf8mb4_bin NOT NULL,
   `prim` BOOLEAN DEFAULT NULL,

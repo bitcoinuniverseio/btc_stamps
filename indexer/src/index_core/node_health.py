@@ -945,6 +945,7 @@ def persist_indexer_version():
 
     from index_core.database import upsert_node_version
     from index_core.database_manager import db_manager
+    from index_core.source_attestation import collect_indexer_source_metadata
 
     version_string = config.VERSION_STRING
     if not version_string:
@@ -967,6 +968,7 @@ def persist_indexer_version():
             version_minor=minor,
             version_revision=revision,
             version_suffix=suffix,
+            extra_info=collect_indexer_source_metadata(),
         )
     finally:
         db.close()

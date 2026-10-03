@@ -49,7 +49,7 @@ class TestUpsertNodeVersion(unittest.TestCase):
         """Same version_string should return False, not write, but commit to release FOR UPDATE lock."""
         from index_core.database import upsert_node_version
 
-        db, cursor = self._make_mock_db(fetchone_return=(42, "28.0.0"))
+        db, cursor = self._make_mock_db(fetchone_return=(42, "28.0.0", None))
 
         result = upsert_node_version(
             db,
@@ -68,7 +68,7 @@ class TestUpsertNodeVersion(unittest.TestCase):
         """Different version should supersede the old row and insert new."""
         from index_core.database import upsert_node_version
 
-        db, cursor = self._make_mock_db(fetchone_return=(42, "27.0.0"))
+        db, cursor = self._make_mock_db(fetchone_return=(42, "27.0.0", None))
 
         result = upsert_node_version(
             db,

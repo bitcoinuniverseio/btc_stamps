@@ -65,8 +65,8 @@ env:
 
 jobs:
   prepare:
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-24.04
+    if: ${{ (github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association))) && (github.event_name == 'workflow_dispatch') }}
+    runs-on: [self-hosted, universe-runners-1]
     permissions:
       contents: write
       pull-requests: write
@@ -155,12 +155,8 @@ jobs:
 
   # Runs when a release/* PR is merged into main: tag + publish the release.
   finalize:
-    if: >-
-      github.event_name == 'pull_request'
-      && github.event.pull_request.merged == true
-      && github.event.pull_request.base.ref == 'main'
-      && startsWith(github.event.pull_request.head.ref, 'release/')
-    runs-on: ubuntu-24.04
+    if: ${{ (github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (!contains(fromJSON('["issue_comment","issues","pull_request_review_comment","pull_request_review"]'), github.event_name) || contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association || github.event.issue.author_association || github.event.review.author_association))) && (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && startsWith(github.event.pull_request.head.ref, 'release/')) }}
+    runs-on: [self-hosted, universe-runners-1]
     permissions:
       contents: write
       pull-requests: write
