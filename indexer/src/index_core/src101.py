@@ -1145,6 +1145,12 @@ def update_src101_owners(db, block_index, src101_processed_in_block):
                         raise ValueError("cannot mint the same tokenid")
                 elif src101_dict["op"] == "TRANSFER":
                     if owner_dict is None:
+                        # A single base64 string tokenid (pre-list form) is one
+                        # name: iterating the string would index characters and
+                        # wedge the block, so treat it as a one-item list.
+                        if isinstance(src101_dict["tokenid"], str):
+                            src101_dict["tokenid"] = [src101_dict["tokenid"]]
+                            src101_dict["tokenid_utf8"] = [src101_dict["tokenid_utf8"]]
                         # A TRANSFER carries tokenid as a list; expand one
                         # owner row per tokenid like the MINT branch, otherwise
                         # update_owner_table concatenates a list into its id
