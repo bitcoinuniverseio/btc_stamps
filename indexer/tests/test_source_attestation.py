@@ -29,3 +29,26 @@ def test_no_build_id_does_not_claim_approval(tmp_path,monkeypatch):
 
 def test_empty_source_cannot_attest(tmp_path):
     with pytest.raises(ValueError,match='no source files'):collect_indexer_source_metadata(tmp_path)
+
+
+def test_actual_selected_network_and_start_rule_overrides_are_attested(tmp_path,monkeypatch):
+    import bitcoin
+    import config
+    (tmp_path/'parser.py').write_text('pass\n')
+    original=bitcoin.params.NAME
+    try:
+        bitcoin.SelectParams('testnet')
+        monkeypatch.setattr(config,'TESTNET',None)
+        monkeypatch.setattr(config,'BLOCK_FIRST',2979826)
+        first=collect_indexer_source_metadata(tmp_path)
+        assert first['effective_protocol']['bitcoin_network'] == 'testnet'
+        assert first['effective_protocol']['testnet'] is None
+        assert first['effective_protocol']['parser_start_height'] == 2979826
+        monkeypatch.setattr(config,'BLOCK_FIRST',3000000)
+        monkeypatch.setattr(config,'DEBUG_SKIP_REBUILD_BALANCES',True)
+        second=collect_indexer_source_metadata(tmp_path)
+        assert first['source_digest_sha256'] == second['source_digest_sha256']
+        assert first['effective_protocol'] != second['effective_protocol']
+        assert second['effective_protocol']['validation']['skip_rebuild_balances'] is True
+    finally:
+        bitcoin.SelectParams(original)

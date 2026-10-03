@@ -5,6 +5,7 @@ import os
 import re
 from pathlib import Path
 
+import bitcoin
 import config
 
 
@@ -34,6 +35,19 @@ def collect_indexer_source_metadata(source_root=None):
         "source_files": source_files,
         "effective_protocol": {
             "activations": activations,
+            "bitcoin_network": bitcoin.params.NAME,
+            "parser_start_height": config.BLOCK_FIRST,
+            "configured_start_heights": {
+                "mainnet": config.BLOCK_FIRST_MAINNET,
+                "testnet": config.BLOCK_FIRST_TESTNET,
+                "regtest": config.BLOCK_FIRST_REGTEST,
+            },
+            "validation": {
+                "skip_rebuild_balances": config.DEBUG_SKIP_REBUILD_BALANCES,
+                "debug_validation": config.DEBUG_VALIDATION,
+                "validation_mode": config.VALIDATION_MODE,
+                "rust_parser_disabled": config.DISABLE_RUST_PARSER,
+            },
             "testnet": getattr(config, "TESTNET", None),
             "regtest": getattr(config, "REGTEST", None),
             "network_profile": os.environ.get("STAMPS_NETWORK"),
