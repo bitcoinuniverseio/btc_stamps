@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "checkedAtUTC": "2026-10-03",
+  "repository_full_name": "bitcoinuniverseio/btc_stamps",
+  "baselineCommit": "8666d779d23caf418edb2c78262a0338b7314b7f",
+  "declaredVersion": "1.9.3",
+  "deployedVersion": "BLOCKED / unobserved",
+  "instructionCheck": {
+    "recursiveTreeTruncated": false,
+    "AGENTSFiles": [],
+    "workspaceAncestorAGENTSFiles": []
+  },
+  "sources": [
+    {
+      "id": "CUSTOM-SRC101",
+      "repository": "bitcoinuniverseio/btc_stamps",
+      "commit": "8666d779d23caf418edb2c78262a0338b7314b7f",
+      "path": "indexer/src/index_core/src101.py",
+      "blobSHA": "20ac95fa5466c5ac04e7b6b9d583475e862f308d",
+      "url": "https://github.com/bitcoinuniverseio/btc_stamps/blob/8666d779d23caf418edb2c78262a0338b7314b7f/indexer/src/index_core/src101.py"
+    },
+    {
+      "id": "CUSTOM-BLOCKS",
+      "repository": "bitcoinuniverseio/btc_stamps",
+      "commit": "8666d779d23caf418edb2c78262a0338b7314b7f",
+      "path": "indexer/src/index_core/blocks.py",
+      "blobSHA": "3fccb8d325e83c83e980a2fbc30fbda321f3eef3",
+      "url": "https://github.com/bitcoinuniverseio/btc_stamps/blob/8666d779d23caf418edb2c78262a0338b7314b7f/indexer/src/index_core/blocks.py"
+    },
+    {
+      "id": "OFFICIAL-SRC101",
+      "repository": "stampchain-io/btc_stamps",
+      "commit": "8a7365bf951a66f3a5e25dc15e8702f65b5d23d8",
+      "version": "1.9.5",
+      "path": "indexer/src/index_core/src101.py",
+      "blobSHA": "2afa30140f3e8b2991229632852037561999bb1b",
+      "url": "https://github.com/stampchain-io/btc_stamps/blob/8a7365bf951a66f3a5e25dc15e8702f65b5d23d8/indexer/src/index_core/src101.py"
+    }
+  ],
+  "diagnostic": {
+    "diagnostic": "PROTO-SRC101-001",
+    "defect_status": "FAIL",
+    "scope": "Exact AST-extracted token validator, two actual token helpers, and owner updater; only the SQL writer is replaced with capture.",
+    "limits": [
+      "Fixture assumes the transfer passed transaction ownership and expiry checks; the full parser is not executed.",
+      "No database, Bitcoin node, indexer process, wallet, signing, broadcast, or deployed instance is used.",
+      "The official function is a comparison result, not a claim that all official SRC-101 behavior is correct."
+    ],
+    "results": [
+      {
+        "source": "official",
+        "repository": "stampchain-io/btc_stamps",
+        "commit": "8a7365bf951a66f3a5e25dc15e8702f65b5d23d8",
+        "source_blob_sha1": "2afa30140f3e8b2991229632852037561999bb1b",
+        "token_validation_errors": [],
+        "normalized_tokenid": "YWxpY2U=",
+        "normalized_tokenid_type": "str",
+        "normalized_tokenid_utf8": "alice",
+        "normalized_tokenid_utf8_type": "str",
+        "returned_owner_rows": [
+          {
+            "p": "SRC-101",
+            "deploy_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tokenid": "YWxpY2U=",
+            "tokenid_utf8": "alice",
+            "owner": "fixture_new_owner",
+            "preowner": "fixture_old_owner",
+            "expire_timestamp": 2000000000,
+            "txt_data": null,
+            "address_btc": null,
+            "address_eth": null,
+            "prim": false,
+            "img": null
+          }
+        ],
+        "outcome": "returned",
+        "writer_rows": [
+          {
+            "p": "SRC-101",
+            "deploy_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tokenid": "YWxpY2U=",
+            "tokenid_utf8": "alice",
+            "owner": "fixture_new_owner",
+            "preowner": "fixture_old_owner",
+            "expire_timestamp": 2000000000,
+            "txt_data": null,
+            "address_btc": null,
+            "address_eth": null,
+            "prim": false,
+            "img": null
+          }
+        ]
+      },
+      {
+        "source": "custom",
+        "repository": "bitcoinuniverseio/btc_stamps",
+        "commit": "8666d779d23caf418edb2c78262a0338b7314b7f",
+        "source_blob_sha1": "20ac95fa5466c5ac04e7b6b9d583475e862f308d",
+        "token_validation_errors": [],
+        "normalized_tokenid": "YWxpY2U=",
+        "normalized_tokenid_type": "str",
+        "normalized_tokenid_utf8": "alice",
+        "normalized_tokenid_utf8_type": "str",
+        "outcome": "raised",
+        "exception_type": "IndexError",
+        "exception_message": "string index out of range",
+        "writer_rows": []
+      }
+    ]
+  }
+}
