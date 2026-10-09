@@ -2935,7 +2935,7 @@ def apply_schema_updates(db, cursor):
 
 def import_bootstrap_data(cursor, filename, url, insert_query):
     """Import bootstrap data, trying local file first, then URL as fallback."""
-    if config.TESTNET or config.REGTEST:
+    if config.TESTNET or config.REGTEST or config.SIGNET:
         logger.info("Skipping mainnet bootstrap metadata on the selected test network")
         return
     import os

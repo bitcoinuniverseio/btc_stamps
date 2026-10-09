@@ -1119,8 +1119,12 @@ def owner_updates_for_event(row):
     op = row["op"]
     if op not in ("MINT", "TRANSFER", "RENEW", "SETRECORD"):
         return []
-    tokens = row["tokenid"] if op == "MINT" else [row["tokenid"]]
-    names = row["tokenid_utf8"] if op == "MINT" else [row["tokenid_utf8"]]
+    # MINT batches tokens; a non-MINT operation normally carries one scalar
+    # token, but a list form is expanded per name instead of being written as
+    # one list-valued id (which wedged the block on the private Signet rig).
+    batched = op == "MINT" or isinstance(row["tokenid"], list)
+    tokens = row["tokenid"] if batched else [row["tokenid"]]
+    names = row["tokenid_utf8"] if batched else [row["tokenid_utf8"]]
     updates = []
     for index, token in enumerate(tokens):
         moved = op == "TRANSFER"

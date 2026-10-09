@@ -17,8 +17,15 @@ else:
         HTTPBasicAuth = None  # type: ignore
 
 from exceptions import ConfigurationError
+from network_profile import NetworkProfile, resolve_profile
 
 logger = logging.getLogger(__name__)
+
+# The one Bitcoin network this deployment indexes (mainnet unless STAMPS_NETWORK says otherwise).
+NETWORK_PROFILE: NetworkProfile = resolve_profile(os.environ)
+NETWORK: str = NETWORK_PROFILE.name
+SIGNET: bool = NETWORK == "signet"
+SIGNET_CHALLENGE: Optional[str] = NETWORK_PROFILE.signet_challenge
 
 # Cache size configurations
 BACKEND_RAW_TRANSACTIONS_CACHE_SIZE = int(os.environ.get("BACKEND_RAW_TRANSACTIONS_CACHE_SIZE", "200000"))
@@ -150,6 +157,8 @@ ZMQ_PORT_TESTNET_TX = os.environ.get("ZMQ_PORT_TESTNET_TX", "19332")
 ZMQ_PORT_TESTNET_BLOCK = os.environ.get("ZMQ_PORT_TESTNET_BLOCK", "19333")
 ZMQ_PORT_REGTEST_TX = os.environ.get("ZMQ_PORT_REGTEST_TX", "29332")
 ZMQ_PORT_REGTEST_BLOCK = os.environ.get("ZMQ_PORT_REGTEST_BLOCK", "29333")
+ZMQ_PORT_SIGNET_TX = os.environ.get("ZMQ_PORT_SIGNET_TX", "39332")
+ZMQ_PORT_SIGNET_BLOCK = os.environ.get("ZMQ_PORT_SIGNET_BLOCK", "39333")
 
 # These will be set based on network type
 ZMQ_TX_PORT: int = int(ZMQ_PORT_MAINNET_TX)
@@ -206,11 +215,19 @@ if not parsed_nodes and (CP_PRIMARY_NODE_URL or CP_FALLBACK_NODE_URL):
 if not parsed_nodes and CP_RPC_URL:
     parsed_nodes.append({"name": "counterparty-primary", "url": CP_RPC_URL})
     logger.info(f"Using legacy CP_RPC_URL: {CP_RPC_URL}")
-    # Auto-add a fallback based on primary
-    if "127.0.0.1" in CP_RPC_URL or "localhost" in CP_RPC_URL:
+    # Auto-add a fallback based on primary (Mainnet only: the public node serves Mainnet).
+    if not NETWORK_PROFILE.is_mainnet:
+        pass
+    elif "127.0.0.1" in CP_RPC_URL or "localhost" in CP_RPC_URL:
         parsed_nodes.append({"name": "counterparty-backup", "url": "https://api.counterparty.io:4000"})
     else:
         parsed_nodes.append({"name": "counterparty-backup", "url": "http://127.0.0.1:4000"})
+
+# Off Mainnet there is no public Counterparty node: the deployment must name its own.
+if not parsed_nodes and not NETWORK_PROFILE.is_mainnet:
+    raise ConfigurationError(
+        f"STAMPS_NETWORK={NETWORK} requires its own Counterparty node (CP_RPC_URL, CP_PRIMARY_NODE_URL or CP_NODE_POOL)"
+    )
 
 # Use defaults if nothing is configured
 if not parsed_nodes:
@@ -438,27 +455,31 @@ INVALID_BTC_STAMP_SUFFIX = ["plain", "octet-stream", "js", "css", "x-empty", "js
 # Pipeline Configuration
 CP_FALLBACK_MODE = os.environ.get("CP_FALLBACK_MODE", "true").lower() == "true"  # Enable fallback mode when CP nodes fail
 
-CP_STAMP_GENESIS_BLOCK: int = 779652  # block height of first valid stamp transaction on counterparty
-CP_SRC20_GENESIS_BLOCK: int = 788041  # This initial start of SRC-20 on Counterparty
-BTC_SRC20_GENESIS_BLOCK: int = 793068  # block height of first SRC-20 without CP encoding
-BTC_SRC20_OLGA_BLOCK: int = 865000  # block height of first SRC-20 with P2WSH OLGA encoding
-CP_SRC721_GENESIS_BLOCK: int = 792370  # block height of first SRC-721
+# Protocol activation heights: the published Mainnet heights, or the deployment
+# parameters of another network profile (network_profile.MAINNET_ACTIVATION_HEIGHTS).
+_HEIGHTS = NETWORK_PROFILE.activation_heights
+CP_STAMP_GENESIS_BLOCK: int = _HEIGHTS["CP_STAMP_GENESIS_BLOCK"]  # first valid stamp transaction on counterparty
+CP_SRC20_GENESIS_BLOCK: int = _HEIGHTS["CP_SRC20_GENESIS_BLOCK"]  # initial start of SRC-20 on Counterparty
+BTC_SRC20_GENESIS_BLOCK: int = _HEIGHTS["BTC_SRC20_GENESIS_BLOCK"]  # first SRC-20 without CP encoding
+BTC_SRC20_OLGA_BLOCK: int = _HEIGHTS["BTC_SRC20_OLGA_BLOCK"]  # first SRC-20 with P2WSH OLGA encoding
+CP_SRC721_GENESIS_BLOCK: int = _HEIGHTS["CP_SRC721_GENESIS_BLOCK"]  # first SRC-721
 
-BTC_SRC101_GENESIS_BLOCK: int = 870652  # block height of first SRC-101
-BTC_SRC101_IMG_OPTIONAL_BLOCK: int = 872200
-BTC_SRC101_OLGA_BLOCK: int = 940000  # P2WSH/OLGA encoding for SRC-101 (~March 2026)
+BTC_SRC101_GENESIS_BLOCK: int = _HEIGHTS["BTC_SRC101_GENESIS_BLOCK"]  # first SRC-101
+BTC_SRC101_IMG_OPTIONAL_BLOCK: int = _HEIGHTS["BTC_SRC101_IMG_OPTIONAL_BLOCK"]
+BTC_SRC101_OLGA_BLOCK: int = _HEIGHTS["BTC_SRC101_OLGA_BLOCK"]  # P2WSH/OLGA encoding for SRC-101
 
-CP_SRC20_END_BLOCK: int = 796000  # The last SRC-20 on CP  - We IGNORE ALL SRC-20 on counterparty AFTER THIS BLOCK
-CP_BMN_FEAT_BLOCK_START: int = 815130  # BMN audio file support
-CP_P2WSH_FEAT_BLOCK_START: int = 833000  # OLGA / P2WSH transactions enabled on stamps
-CP_SUBASSET_FEAT_BLOCK_START: int = 866000  # Subasset no longer require XCP fees
+CP_SRC20_END_BLOCK: int = _HEIGHTS[
+    "CP_SRC20_END_BLOCK"
+]  # The last SRC-20 on CP - We IGNORE ALL SRC-20 on counterparty AFTER THIS BLOCK
+CP_BMN_FEAT_BLOCK_START: int = _HEIGHTS["CP_BMN_FEAT_BLOCK_START"]  # BMN audio file support
+CP_P2WSH_FEAT_BLOCK_START: int = _HEIGHTS["CP_P2WSH_FEAT_BLOCK_START"]  # OLGA / P2WSH transactions enabled on stamps
+CP_SUBASSET_FEAT_BLOCK_START: int = _HEIGHTS["CP_SUBASSET_FEAT_BLOCK_START"]  # Subasset no longer require XCP fees
 
 # Consensus changes
-STRIP_WHITESPACE: int = 797200
-STOP_BASE64_REPAIR: int = 784550
-SVG_GZIP_DETECTION_V2: int = 999999  # Block height where new SVG gzip detection method activates
-ENHANCED_MIME_DETECTION: int = 999999  # Block height where enhanced MIME detection for SVG activates
-
+STRIP_WHITESPACE: int = _HEIGHTS["STRIP_WHITESPACE"]
+STOP_BASE64_REPAIR: int = _HEIGHTS["STOP_BASE64_REPAIR"]
+SVG_GZIP_DETECTION_V2: int = _HEIGHTS["SVG_GZIP_DETECTION_V2"]  # Block height where new SVG gzip detection method activates
+ENHANCED_MIME_DETECTION: int = _HEIGHTS["ENHANCED_MIME_DETECTION"]  # enhanced MIME detection for SVG activates
 
 VERSION_MAJOR: Optional[int]
 VERSION_MINOR: Optional[int]
@@ -688,6 +709,8 @@ BLOCK_FIRST_TESTNET = int(os.environ.get("BLOCK_FIRST_TESTNET", 2979826))
 
 BLOCK_FIRST_MAINNET = CP_STAMP_GENESIS_BLOCK
 BLOCK_FIRST_REGTEST = 0
+# Signet starts at its configured Stamps activation height (STAMPS_ACTIVATION_HEIGHTS).
+BLOCK_FIRST_SIGNET = NETWORK_PROFILE.block_first if SIGNET else 0
 
 DEFAULT_REQUESTS_TIMEOUT = 20  # 20 seconds
 
