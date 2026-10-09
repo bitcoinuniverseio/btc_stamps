@@ -127,7 +127,12 @@ def initialize_config(
 ):
     """Initialize configuration with proper network selection."""
     # Set network based on config
-    if config.TESTNET or testnet:
+    if config.SIGNET:
+        if testnet or regtest:
+            raise ConfigurationError("STAMPS_NETWORK=signet cannot be combined with testnet/regtest flags")
+        config.BLOCK_FIRST = config.BLOCK_FIRST_SIGNET
+        SelectParams("signet")
+    elif config.TESTNET or testnet:
         config.BLOCK_FIRST = config.BLOCK_FIRST_TESTNET
         SelectParams("testnet")
     elif regtest:
@@ -185,6 +190,8 @@ def initialize_config(
         config.CUSTOMNET = False
 
     network = ""
+    if config.SIGNET:
+        network += ".signet"
     if config.TESTNET:
         network += ".testnet"
     if config.REGTEST:
@@ -301,7 +308,10 @@ def initialize_config(
         config.ESTIMATE_FEE_PER_KB = estimate_fee_per_kb
 
     # Set ZMQ ports based on network type
-    if config.TESTNET:
+    if config.SIGNET:
+        config.ZMQ_TX_PORT = int(config.ZMQ_PORT_SIGNET_TX)
+        config.ZMQ_BLOCK_PORT = int(config.ZMQ_PORT_SIGNET_BLOCK)
+    elif config.TESTNET:
         config.ZMQ_TX_PORT = int(config.ZMQ_PORT_TESTNET_TX)
         config.ZMQ_BLOCK_PORT = int(config.ZMQ_PORT_TESTNET_BLOCK)
     elif config.REGTEST:
@@ -315,6 +325,24 @@ def initialize_config(
 
 
 # Database initialization functions moved to database.py to break circular import
+
+
+def verify_network_identity() -> None:
+    """Refuse to index unless Bitcoin Core and every Counterparty node serve the configured network."""
+    import requests
+
+    from network_profile import verify_bitcoin_core, verify_counterparty
+
+    profile = config.NETWORK_PROFILE
+    verify_bitcoin_core(profile, backend_instance.rpc("getblockchaininfo", []))
+    for node in config.XCP_V2_NODES:
+        try:
+            response = requests.get(node["url"].rstrip("/") + "/", timeout=config.CP_RPC_TIMEOUT)
+            root = response.json()
+        except Exception as exc:  # unreachable or non-JSON: cannot prove the network
+            raise ConfigurationError(f"Counterparty node {node['name']} network could not be verified: {exc}") from exc
+        verify_counterparty(profile, node["name"], root)
+    logger.info(f"Network identity verified: {profile.name} (Bitcoin Core chain {profile.bitcoin_core_chain})")
 
 
 def connect_to_backend():
@@ -341,6 +369,7 @@ def start_all(db: Connection) -> None:
 
         # Backend
         connect_to_backend()  # This sets the global backend_instance
+        verify_network_identity()
         if config.STORE_FILES:
             if not config.UNIVERSE_MEDIA_ENABLED:
                 raise ConfigurationError("STORE_FILES requires the shared Universe media service")
