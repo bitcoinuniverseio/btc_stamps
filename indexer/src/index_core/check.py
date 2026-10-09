@@ -212,6 +212,11 @@ CHECKPOINTS_REGTEST = {
 }
 
 
+# Signet deployments have no published checkpoints: hashes are computed and stored, never compared to Mainnet's.
+CONSENSUS_HASH_VERSION_SIGNET = 1
+CHECKPOINTS_SIGNET: Dict[int, Dict[str, str]] = {}
+
+
 class ConsensusError(Exception):
     pass
 
@@ -285,7 +290,9 @@ def consensus_hash(db, block_index, field, previous_consensus_hash, content, blo
                 handle_consensus_error(error_msg)
 
     # Calculate current hash.
-    if config.TESTNET:
+    if config.SIGNET:
+        consensus_hash_version = CONSENSUS_HASH_VERSION_SIGNET
+    elif config.TESTNET:
         consensus_hash_version = CONSENSUS_HASH_VERSION_TESTNET
     elif config.REGTEST:
         consensus_hash_version = CONSENSUS_HASH_VERSION_REGTEST
@@ -330,7 +337,9 @@ def consensus_hash(db, block_index, field, previous_consensus_hash, content, blo
         )  # nosec
 
     # Check against checkpoints.
-    if config.TESTNET:
+    if config.SIGNET:
+        checkpoints = CHECKPOINTS_SIGNET
+    elif config.TESTNET:
         checkpoints = CHECKPOINTS_TESTNET
     elif config.REGTEST:
         checkpoints = CHECKPOINTS_REGTEST
