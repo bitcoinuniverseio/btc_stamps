@@ -10,10 +10,12 @@ This module implements multiple safety checks to ensure that:
 import logging
 import os
 
+import config
+
 logger = logging.getLogger(__name__)
 
 # Safety constants
-MIN_VALID_BLOCK = 779652  # CP_STAMP_GENESIS_BLOCK - First valid stamp
+MIN_VALID_BLOCK = config.CP_STAMP_GENESIS_BLOCK  # First valid stamp of the configured network
 MAX_ROLLBACK_BLOCKS = 1000  # Maximum blocks allowed to rollback - reduced for safety
 TEST_BLOCK_RANGES = [
     (0, 1000),  # Common test block range
@@ -43,8 +45,8 @@ def validate_block_number(block: int, context: str = "block") -> None:
     if not is_production_environment():
         return
 
-    # Check if block is in test ranges
-    for start, end in TEST_BLOCK_RANGES:
+    # Check if block is in test ranges (Mainnet heights only: a Signet chain is short and real)
+    for start, end in TEST_BLOCK_RANGES if config.NETWORK_PROFILE.is_mainnet else []:
         if start <= block <= end:
             raise ReprocessSafetyError(
                 f"SAFETY VIOLATION: {context} {block} is in test block range [{start}, {end}]. "
