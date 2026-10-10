@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TypedDict
 
 import zmq
 import zmq.sugar.socket
@@ -12,7 +12,15 @@ logger = logging.getLogger(__name__)
 # The polling loop re-checks ZMQ every few blocks; ask the node at most this
 # often so a node without ZMQ costs one RPC and one warning, not a flood.
 NODE_CHECK_TTL_SECONDS = 600
-_node_check = {"port": None, "result": None, "at": 0.0}
+
+
+class NodeCheck(TypedDict):
+    port: Optional[int]
+    result: Optional[bool]
+    at: float
+
+
+_node_check: NodeCheck = {"port": None, "result": None, "at": 0.0}
 
 
 class ZMQNotifier:
@@ -80,15 +88,14 @@ class ZMQNotifier:
         try:
             notifications = Backend().rpc("getzmqnotifications", []) or []
             result = any(
-                n.get("type") == "pubrawblock" and str(n.get("address", "")).endswith(f":{port}")
-                for n in notifications
+                n.get("type") == "pubrawblock" and str(n.get("address", "")).endswith(f":{port}") for n in notifications
             )
         except Exception as e:
             logger.warning(f"getzmqnotifications failed: {e}")
             result = False
         if not result and _node_check["result"] is not False:
             logger.warning(f"Node does not publish rawblock on port {port} - using RPC polling only")
-        _node_check.update(port=port, result=result, at=now)
+        _node_check.update({"port": port, "result": result, "at": now})
         return result
 
     def wait_for_notification(self, timeout: int = 1000) -> Optional[Tuple[bytes, bytes, bytes]]:
