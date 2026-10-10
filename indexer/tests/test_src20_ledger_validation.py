@@ -245,20 +245,25 @@ class TestSrc20LedgerValidation(unittest.TestCase):
         assert "addr with spaces" in result.validation
 
     def test_ledger_validation_performance_with_large_datasets(self):
-        """Test ledger validation performance with large balance sets."""
+        """Exercise real parsing/comparison with a bounded CPU cost and 10,000 balances."""
         # Create large balance set
         large_balances = {"TEST": {f"addr{i}": Decimal(str(i)) for i in range(10000)}}
 
-        # Hash generation should complete in reasonable time
+        balance_string = ";".join(f"TEST,addr{i},{i}" for i in range(10000))
+        # Measure this pure calculation's CPU cost; shared CI scheduling delay
+        # is unrelated to its algorithm. Runtime network deadlines are separate.
         import time
 
-        start_time = time.time()
-        # Generate hash manually since get_src20_ledger_hash is not a real function
-        hash_result = hashlib.sha256(json.dumps(large_balances, sort_keys=True, default=str).encode()).hexdigest()
-        elapsed_time = time.time() - start_time
+        start_time = time.process_time()
+        parsed = parse_balances(balance_string)
+        differences = compare_balances(large_balances, parsed)
+        elapsed_time = time.process_time() - start_time
 
-        assert elapsed_time < 1.0  # Should complete within 1 second
-        assert isinstance(hash_result, str)
+        assert elapsed_time < 1.0
+        assert len(parsed["TEST"]) == 10000
+        assert differences == []
+        parsed["TEST"]["addr9999"] = Decimal("10000")
+        assert compare_balances(large_balances, parsed) == [("addr9999", [("TEST", Decimal("9999"), Decimal("10000"))])]
 
     @patch("index_core.src20.fetch_api_ledger_data")
     def test_validate_ledger_with_network_interruption(self, mock_fetch):
