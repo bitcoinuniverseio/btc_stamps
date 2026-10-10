@@ -122,7 +122,12 @@ def main() -> int:
     rpc_url = os.environ.get("BITCOIN_RPC_URL")
     rpc_user = os.environ.get("BITCOIN_RPC_USER", "")
     rpc_secret = os.environ.get("BITCOIN_RPC_PASSWORD", "")
-    source = "bitcoind RPC" if rpc_url else "blockstream.info"
+    cache = None
+    if os.environ.get("CI_CURATED_BLOCK_CACHE"):
+        from curated_block_cache import configured_cache
+
+        cache = configured_cache()
+    source = "verified curated cache" if cache else "bitcoind RPC" if rpc_url else "blockstream.info"
     print(f"Validating {len(blocks)} consensus boundary blocks via {source}\n")
 
     # Classify outcomes: HASH MISMATCH is a genuine consensus signal (fatal,
@@ -136,8 +141,11 @@ def main() -> int:
         reason = entry.get("reason", "")
         fetch = (lambda h: fetch_via_rpc(rpc_url, rpc_user, rpc_secret, h)) if rpc_url else fetch_via_blockstream
         try:
-            raw = _fetch_with_retries(fetch, block_hash)
+            raw = cache.block_bytes(block_hash) if cache else _fetch_with_retries(fetch, block_hash)
         except (urllib.error.URLError, TimeoutError, RuntimeError, OSError) as e:
+            if cache:
+                print(f"::error::Curated cache read failed for {block_index}: {e}", file=sys.stderr)
+                return 1
             # Not a consensus signal — the node was unreachable/slow. Warn, don't fail.
             print(f"  block {block_index} ({reason}): FETCH FAILED after {FETCH_ATTEMPTS} attempts — {e}")
             fetch_failures += 1

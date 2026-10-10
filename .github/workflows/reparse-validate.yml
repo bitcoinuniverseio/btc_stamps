@@ -81,6 +81,8 @@ jobs:
     # red so this gate can be made required. The deliberate scope exclusions
     # (TIER3_CROSS_BLOCK_LEDGER) remain SKIPS inside ci_reparse_subprocess.py
     # (dropped from the block list), not failures, so they never turn the gate red.
+    env:
+      CI_CURATED_BLOCK_CACHE: ${{ runner.temp }}/counterparty-curated-cache-${{ github.run_id }}-${{ strategy.job-index }}
     strategy:
       fail-fast: false
       # All versions share the same public upstream when private RPC is unset.
@@ -113,19 +115,14 @@ jobs:
           python3 -m unittest discover -s indexer/ci -p test_validate_checkpoints_vs_reference.py
           python3 indexer/ci/validate_checkpoints_vs_reference.py
 
-      - name: Validate block bytes against baseline
+      - name: Fetch verified curated Bitcoin block inputs
         env:
-          # Operator-supplied bitcoind RPC. Leave unset to use the
-          # blockstream.info public node (content-addressed, so trust is
-          # bounded by hash verification — the workflow rejects any block
-          # whose bytes don't hash to the expected block_hash).
-          BITCOIN_RPC_URL: ${{ secrets.BITCOIN_RPC_URL }}
-          BITCOIN_RPC_USER: ${{ secrets.BITCOIN_RPC_USER }}
-          BITCOIN_RPC_PASSWORD: ${{ secrets.BITCOIN_RPC_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python3 indexer/ci/ci_validate_consensus.py \
-            --baseline indexer/snapshots/ci_consensus_hashes.json
-
+          python3 indexer/ci/fetch_curated_block_cache.py \
+            --asset-id 628295444 \
+            --sha256 cca8d4260c435677c3a0060c35489a273636e829b360b9e9f1f977eb02821c16 \
+            --destination "$CI_CURATED_BLOCK_CACHE"
       # ---- Tier 3 subprocess reparse runner (#770 Option B) ----
       # Spawns a fresh Python subprocess per curated block, exercising the
       # full reparse validator (Rust parser + reparse pipeline) instead of
@@ -167,7 +164,23 @@ jobs:
       # it also proves the same versions resolve on 3.10 / 3.11 / 3.12.
       - name: Consensus package pin guard
         working-directory: ./indexer
-        run: poetry run python ci/check_consensus_pkg_pins.py
+        run: |
+          poetry run python -m unittest discover -s ci -p test_curated_block_cache.py
+          poetry run python ci/check_consensus_pkg_pins.py
+
+      - name: Validate block bytes against baseline
+        working-directory: ./indexer
+        env:
+          # Operator-supplied bitcoind RPC. Leave unset to use the
+          # blockstream.info public node (content-addressed, so trust is
+          # bounded by hash verification — the workflow rejects any block
+          # whose bytes don't hash to the expected block_hash).
+          BITCOIN_RPC_URL: ${{ secrets.BITCOIN_RPC_URL }}
+          BITCOIN_RPC_USER: ${{ secrets.BITCOIN_RPC_USER }}
+          BITCOIN_RPC_PASSWORD: ${{ secrets.BITCOIN_RPC_PASSWORD }}
+        run: |
+          poetry run python ci/ci_validate_consensus.py \
+            --baseline snapshots/ci_consensus_hashes.json
 
       - name: Tier 3 — subprocess reparse over curated baseline
         working-directory: ./indexer
