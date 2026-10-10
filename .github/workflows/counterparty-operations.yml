@@ -44,12 +44,12 @@ jobs:
           git -C "$COUNTERPARTY_PINNED_SOURCE" apply --check "$output/counterparty-no-force.patch"
           git diff --check
           echo "COUNTERPARTY_DRAIN_PATCH=$output" >> "$GITHUB_ENV"
-      - name: Real release-image HTTP and watcher cleanup
-        timeout-minutes: 2
+      - name: Prepare and start the isolated native controls
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
-          controls="$RUNNER_TEMP/counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          controls="$RUNNER_WORKSPACE/counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           mkdir "$controls"
           cp operations/counterparty/graceful_drain.py "$controls/"
           cp operations/counterparty/native_waitress_transport.py "$controls/"
@@ -61,17 +61,43 @@ jobs:
           chmod 444 "$controls"/*.py
           image=counterparty/counterparty@sha256:3a075dadc0e9b45e979b18652559fa050b8cba2d2f5421673e3f8f6b7f4e7c09
           container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker run --pull=never --name "$container" --sig-proxy=false --network none --read-only \
+          docker create --pull=never --name "$container" --network none --read-only \
             --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 \
             --memory 512m --memory-swap 512m --cpus .25 --pids-limit 64 --stop-timeout -1 \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=0700 \
             --mount "type=bind,src=$controls,dst=/controls,readonly" \
             --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 \
-            --entrypoint /venv/bin/python "$image" /controls/native_waitress_transport.py \
-            2>&1 | tee "$RUNNER_TEMP/counterparty-native-output-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.log"
+            --entrypoint /venv/bin/python "$image" /controls/native_waitress_transport.py
+          docker start "$container"
+      - name: Real release-image HTTP and watcher cleanup
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test "$(docker wait "$container")" = '0'
+          docker logs "$container" 2>&1 | tee "$RUNNER_TEMP/counterparty-native-output-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.log"
           test "$(docker inspect --format '{{.State.Pid}} {{.State.ExitCode}} {{.State.OOMKilled}}' "$container")" = '0 0 false'
+          docker inspect --format '{{json .State}}' "$container" > "$RUNNER_TEMP/counterparty-native-state.json"
+          python - "$RUNNER_TEMP/counterparty-native-state.json" <<'PY'
+          import datetime, json, pathlib, sys
+          state = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          started = datetime.datetime.fromisoformat(state['StartedAt'].replace('Z', '+00:00'))
+          ended = datetime.datetime.fromisoformat(state['FinishedAt'].replace('Z', '+00:00'))
+          elapsed = (ended - started).total_seconds()
+          assert 0 < elapsed <= 120, 'Actual native runtime exceeded the unchanged two-minute bound'
+          print(json.dumps({'nativeElapsedSeconds': elapsed, 'exitCode': state['ExitCode'], 'oomKilled': state['OOMKilled']}))
+          PY
           if grep -E 'Exception when servicing|Exception while serving|SQLITE_WARNING|Traceback' \
             "$RUNNER_TEMP/counterparty-native-output-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.log"; then
             echo '::error::Native cleanup reported an error despite test completion'
             exit 1
+          fi
+      - name: Preserve native container lifecycle observations
+        if: always()
+        shell: bash
+        run: |
+          container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if docker inspect "$container" >/dev/null 2>&1; then
+            docker inspect --format 'PID={{.State.Pid}} status={{.State.Status}} exit={{.State.ExitCode}} OOM={{.State.OOMKilled}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' "$container"
           fi
