@@ -52,7 +52,6 @@ ratelimit = "^2.2.1"
 redis = "^8.0.1"
 
 [tool.poetry.group.arweave.dependencies]
-arweave-python-client = "1.0.19"
 pynacl = "1.6.2"
 
 [tool.poetry.group.dev.dependencies]
