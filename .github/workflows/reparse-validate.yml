@@ -83,6 +83,8 @@ jobs:
     # (dropped from the block list), not failures, so they never turn the gate red.
     strategy:
       fail-fast: false
+      # All versions share the same public upstream when private RPC is unset.
+      max-parallel: 1
       matrix:
         # Validate consensus on every Python the project supports for consensus.
         # Prod runs 3.10; the dev container runs 3.12. A code audit (#803) proved
@@ -169,6 +171,11 @@ jobs:
 
       - name: Tier 3 — subprocess reparse over curated baseline
         working-directory: ./indexer
+        env:
+          # Use the same configured, hash-verified block source as Tier 1.
+          CI_BITCOIN_RPC_URL: ${{ secrets.BITCOIN_RPC_URL }}
+          CI_BITCOIN_RPC_USER: ${{ secrets.BITCOIN_RPC_USER }}
+          CI_BITCOIN_RPC_PASSWORD: ${{ secrets.BITCOIN_RPC_PASSWORD }}
         run: |
           poetry run python ci/ci_reparse_subprocess.py \
             --baseline snapshots/ci_consensus_hashes.json \
