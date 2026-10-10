@@ -1,15 +1,23 @@
 # Counterparty dependency recovery
 
-This operational work targets official Counterparty Core v11.4.0,
-`e4d1315654b79bb7207cd9f45a8d7b6d5255a290`. It does not modify Bitcoin or
-Counterparty transaction interpretation, start a service, grant database access,
-or activate a replacement provider.
+This operational work now targets official Counterparty Core v11.5.0,
+`8aab989157019e62423cd959b8571c7daf748d56`. The security release requires
+replay from Signet block 324,359 (Mainnet block 969,320). At the preserved
+Signet database height 325,199, 11.4 is no longer a supported current parser.
+The patch preserves 11.5 transaction interpretation and its mempool progress
+handoff. It prepares source without starting a service, granting database access,
+or activating a replacement provider.
 
-The existing Signet unit is inactive. Its 11.3 image and preserved datasets must
-remain intact. The official 11.4 source is needed after Signet height 325,500.
-The immutable release image has been captured, its 307 installed Python and
-protocol files match the pinned source, and its native extension imports under
-an isolated namespace. That is build evidence, not protocol acceptance.
+The existing 11.3 image and original datasets remain preserved. Qualification
+uses a separate copy and the release's own upgrade actions. The captured 11.5
+release image's 312 installed Python and protocol files match the pinned raw Git
+source; compiled Rust source equivalence and full chain-provider acceptance
+remain unqualified.
+
+Earlier 11.4 qualification remains historical evidence: 307 installed source
+files matched its release, and isolated native migration completed at height
+325,199. That success does not qualify 11.4 after the 11.5 activation. Keep those
+receipts rather than relabeling them as current release evidence.
 
 The pinned upstream parent kills its API child after ten seconds. Its child also
 interrupts its watcher and spends an eight-second cleanup budget. Before adoption,
@@ -31,8 +39,8 @@ it also verifies that unrelated declarations remain intact. The operational CI
 job fetches the exact upstream commit and runs these controls on Linux.
 
 `native_waitress_transport.py` additionally exercises the derived Waitress class
-with its real HTTP socket and installed release dependencies. In the isolated
-release-image fixture, an accepted response finished after eleven seconds while
+with its real HTTP socket and installed release dependencies. In the earlier isolated
+11.4 release-image fixture, an accepted response finished after eleven seconds while
 new admission returned 503, then the server and dispatcher exited naturally.
 The fixture also starts the actual derived watcher and verifies that a real
 SQLite savepoint commits after eleven seconds before the watcher closes its

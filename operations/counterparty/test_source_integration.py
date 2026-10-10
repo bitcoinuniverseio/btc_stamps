@@ -34,6 +34,16 @@ class SourceIntegration(unittest.TestCase):
         cls.checkout = pathlib.Path(os.environ["COUNTERPARTY_PINNED_SOURCE"])
         cls.changes = PREPARE.prepare(cls.checkout)
 
+    def test_security_release_mempool_progress_handoff_is_preserved(self):
+        source = self.changes[PREPARE.PREFIX + "api/apiserver.py"][1]
+        tree = ast.parse(source)
+        owner = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "APIServer")
+        constructor = next(node for node in owner.body if isinstance(node, ast.FunctionDef) and node.name == "__init__")
+        self.assertIn("mempool_progress", [arg.arg for arg in constructor.args.args])
+        self.assertIn("self.mempool_progress = mempool_progress", ast.unparse(constructor))
+        start = next(node for node in owner.body if isinstance(node, ast.FunctionDef) and node.name == "start")
+        self.assertIn("self.mempool_progress", ast.unparse(start))
+
     def test_api_only_owner_requests_child_stop_before_joining_its_server_thread(self):
         source = self.changes[PREPARE.PREFIX + "cli/server.py"][1]
         stop = source_method(source, "CounterpartyServer", "stop", {
