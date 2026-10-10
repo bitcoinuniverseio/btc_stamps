@@ -130,12 +130,12 @@ def prepare(checkout):
             if self.current_state_thread is not None:
                 self.current_state_thread.stop(deadline=deadline)
                 self.current_state_thread.join()
-            self.server.close()
             dispatcher = self.server.task_dispatcher
             dispatcher.shutdown(cancel_pending=True, timeout=5)
             with dispatcher.lock:
                 while dispatcher.threads:
                     dispatcher.thread_exit_cv.wait()
+            self.server.close()
             if self.server_ready_value is not None:
                 self.server_ready_value.value = 2
 
