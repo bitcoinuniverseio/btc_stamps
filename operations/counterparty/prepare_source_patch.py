@@ -22,7 +22,7 @@ def prepare(checkout):
     if head != SOURCE_COMMIT or subprocess.check_output(["git", "status", "--porcelain"], cwd=checkout):
         raise RuntimeError("Require the clean, exact pinned upstream checkout")
     result = {}
-    for relative in ["api/apiserver.py", "api/apiwatcher.py", "api/wsgi.py", "cli/server.py"]:
+    for relative in ["api/apiserver.py", "api/apiwatcher.py", "api/wsgi.py", "api/apiv1.py", "cli/server.py"]:
         original = subprocess.check_output(["git", "show", "HEAD:" + PREFIX + relative], cwd=checkout).decode()
         changed = original
         if relative == "api/apiserver.py":
@@ -142,6 +142,53 @@ def prepare(checkout):
     def get_task_dispatcher(self):
         # Waitress'''
             changed = replace_once(changed, old, new)
+        elif relative == "api/apiv1.py":
+            changed = replace_once(changed, "from counterpartycore.lib.api import composer, healthz", "from counterpartycore.lib.api import composer, healthz\nfrom counterpartycore.lib.api.graceful_drain import AdmissionDrain")
+            old = '''        self.join(timeout=5)
+        if self.is_alive():
+            logger.warning("API v1 Status Poller thread did not stop in time, continuing...")
+        else:
+            logger.info("API v1 Status Poller thread stopped.")'''
+            changed = replace_once(changed, old, '''        self.join()
+        logger.info("API v1 Status Poller thread completed cleanup.")''')
+            changed = replace_once(changed, "        self.ctx = None\n        threading.Thread.__init__(self, name=\"APIv1Server\")", "        self.ctx = None\n        self.drain_lock = threading.Lock()\n        self.admission_drain = None\n        self.stopping = False\n        threading.Thread.__init__(self, name=\"APIv1Server\")")
+            old = '''        if self.server:
+            self.server.shutdown()
+        self.join(timeout=5)
+        if self.is_alive():
+            logger.warning("API Server v1 thread did not stop in time, continuing...")
+        else:
+            logger.info("API Server v1 thread stopped.")'''
+            changed = replace_once(changed, old, '''        with self.drain_lock:
+            self.stopping = True
+            if self.server:
+                self.admission_drain.close_admission()
+                self.admission_drain.wait()
+                self.server.shutdown()
+                self.server.server_close()
+        if self.is_alive() and threading.current_thread() is not self:
+            self.join()
+        self.is_ready = False
+        logger.info("API Server v1 completed cleanup.")''')
+            old = '''        self.is_ready = True
+        self.server = make_server(config.RPC_HOST, config.RPC_PORT, app, threaded=True)
+        init_api_access_log(app)
+        self.ctx = app.app_context()
+        self.ctx.push()
+        # Run app server (blocking)
+        self.server.serve_forever()'''
+            changed = replace_once(changed, old, '''        with self.drain_lock:
+            if self.stopping:
+                return
+            self.admission_drain = AdmissionDrain(app)
+            self.server = make_server(config.RPC_HOST, config.RPC_PORT, self.admission_drain, threaded=True)
+            self.server.daemon_threads = False
+            init_api_access_log(app)
+            self.ctx = app.app_context()
+            self.ctx.push()
+            self.is_ready = True
+        # Run app server (blocking)
+        self.server.serve_forever()''')
         else:
             old = '''        if self.follower_daemon:
             self.follower_daemon.stop()

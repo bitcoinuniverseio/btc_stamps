@@ -18,7 +18,7 @@ responses, parser work and watcher transactions before closing database pools.
 Unfinished or failed cleanup must remain an explicit unqualified state.
 
 `graceful_drain.py` supplies the admission and owned-child wait primitives.
-`prepare_source_patch.py` produces an exact five-file patch for the pinned server
+`prepare_source_patch.py` produces an exact six-file patch for the pinned server
 and records every upstream and derived file hash. The patch is prepared, without
 live adoption. Full source/native gates remain required; these files alone do
 not fix a live service. `test_graceful_drain.py` verifies accepted-response cleanup, error
@@ -39,7 +39,10 @@ SQLite savepoint commits after eleven seconds before the watcher closes its
 connections. Earlier runs exposed a forbidden WSGI Connection header and a
 worker wakeup race; the corrected final run passed without cleanup diagnostics.
 This fixture supplies `derived_wsgi.py` and `derived_apiwatcher.py` from the
-generated patch and does not establish full chain-provider acceptance.
+generated patch and does not establish full chain-provider acceptance. The
+legacy JSON-RPC server uses the same admission accounting when enabled; its real
+HTTP fixture retains an eleven-second response, returns 503 to new work, and
+exits naturally. Stopping before startup cannot create a listener afterward.
 
 Keep canonical mounts out of qualification namespaces. Pin network, genesis,
 source image, protected cookie reference, sole producer and database epoch before
