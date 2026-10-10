@@ -118,7 +118,8 @@ class TestSimpleDatabaseFunctions(unittest.TestCase):
 
         purge_owners(cursor)
 
-        cursor.execute.assert_called_once_with("TRUNCATE TABLE owners")
+        # Transactional DELETE, not TRUNCATE: a failed rebuild insert must roll back.
+        cursor.execute.assert_called_once_with("DELETE FROM owners")
 
     def test_get_stamp_view_stats_success(self):
         """Test getting stamp view statistics - success case."""
