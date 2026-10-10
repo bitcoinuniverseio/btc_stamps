@@ -30,13 +30,18 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
           components: rustfmt, clippy
+          cache: false
       - name: Cache Rust dependencies (Save + Restore)
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
+          workspaces: indexer/src/rust_parser
           key: rust-${{ runner.os }}-${{ hashFiles('indexer/src/rust_parser/rust-toolchain.toml') }}-${{ hashFiles('indexer/src/rust_parser/Cargo.lock') }}
       - name: Install Poetry
         run: |
-          curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
+          python -m venv "$RUNNER_TEMP/poetry-tools"
+          "$RUNNER_TEMP/poetry-tools/bin/python" -m pip install poetry==2.1.1
+          export PATH="$RUNNER_TEMP/poetry-tools/bin:$PATH"
+          echo "$RUNNER_TEMP/poetry-tools/bin" >> "$GITHUB_PATH"
           poetry config virtualenvs.in-project true
           poetry install
         working-directory: ./indexer
@@ -72,14 +77,19 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
           components: rustfmt, clippy
+          cache: false
       - name: Cache Rust dependencies (Restore Only)
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
+          workspaces: indexer/src/rust_parser
           key: rust-${{ runner.os }}-${{ hashFiles('indexer/src/rust_parser/rust-toolchain.toml') }}-${{ hashFiles('indexer/src/rust_parser/Cargo.lock') }}
           save-if: ${{ false }}
       - name: Install Poetry
         run: |
-          curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
+          python -m venv "$RUNNER_TEMP/poetry-tools"
+          "$RUNNER_TEMP/poetry-tools/bin/python" -m pip install poetry==2.1.1
+          export PATH="$RUNNER_TEMP/poetry-tools/bin:$PATH"
+          echo "$RUNNER_TEMP/poetry-tools/bin" >> "$GITHUB_PATH"
           poetry config virtualenvs.in-project true
           poetry install
         working-directory: ./indexer
@@ -121,14 +131,19 @@ jobs:
         uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1
         with:
           components: rustfmt, clippy
+          cache: false
       - name: Cache Rust dependencies (Restore Only)
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
+          workspaces: indexer/src/rust_parser
           key: rust-${{ runner.os }}-${{ hashFiles('indexer/src/rust_parser/rust-toolchain.toml') }}-${{ hashFiles('indexer/src/rust_parser/Cargo.lock') }}
           save-if: ${{ false }}
       - name: Install Poetry
         run: |
-          curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
+          python -m venv "$RUNNER_TEMP/poetry-tools"
+          "$RUNNER_TEMP/poetry-tools/bin/python" -m pip install poetry==2.1.1
+          export PATH="$RUNNER_TEMP/poetry-tools/bin:$PATH"
+          echo "$RUNNER_TEMP/poetry-tools/bin" >> "$GITHUB_PATH"
           poetry config virtualenvs.in-project true
           poetry install
         working-directory: ./indexer
