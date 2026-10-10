@@ -3,6 +3,7 @@ import http.client
 import importlib.util
 import logging
 import pathlib
+import tempfile
 import sys
 import threading
 import time
@@ -11,6 +12,49 @@ import unittest
 
 
 class NativeWaitressDrain(unittest.TestCase):
+    def test_actual_watcher_closes_after_retained_savepoint_commits(self):
+        import apsw
+
+        root = pathlib.Path(__file__).parent
+        spec = importlib.util.spec_from_file_location("derived_watcher", root / "derived_apiwatcher.py")
+        watcher_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(watcher_module)
+        with tempfile.TemporaryDirectory(prefix="counterparty-watcher-") as scratch:
+            state_path = pathlib.Path(scratch) / "state.sqlite"
+            ledger_path = pathlib.Path(scratch) / "ledger.sqlite"
+            state, ledger = apsw.Connection(str(state_path)), apsw.Connection(str(ledger_path))
+            state.execute("CREATE TABLE retained (value INTEGER)")
+            entered = threading.Event()
+            watcher_module.database.get_db_connection = lambda *_args, **_kwargs: ledger
+            watcher_module.update_last_parsed_events_cache = lambda *_args, **_kwargs: None
+            watcher_module.config.DATABASE = str(ledger_path)
+
+            def retained_savepoint(_ledger, connection, owner):
+                connection.execute("SAVEPOINT retained_work")
+                connection.execute("INSERT INTO retained VALUES (1)")
+                entered.set()
+                owner.stop_event.wait()
+                time.sleep(11)
+                connection.execute("RELEASE retained_work")
+
+            watcher_module.catch_up = retained_savepoint
+            watcher = watcher_module.APIWatcher(state)
+            self.assertFalse(watcher.daemon)
+            watcher.start()
+            self.assertTrue(entered.wait(10))
+            began = time.monotonic()
+            watcher.stop(deadline=0)
+            self.assertGreaterEqual(time.monotonic() - began, 10.5)
+            self.assertFalse(watcher.is_alive())
+            self.assertFalse(watcher_module.watcher_has_failed())
+            self.assertIsNone(watcher.state_db)
+            self.assertIsNone(watcher.ledger_db)
+            readback = apsw.Connection(str(state_path))
+            try:
+                self.assertEqual(list(readback.execute("SELECT value FROM retained")), [(1,)])
+            finally:
+                readback.close()
+
     def test_actual_http_response_finishes_after_old_force_deadline(self):
         root = pathlib.Path(__file__).parent
         for name, path in [
