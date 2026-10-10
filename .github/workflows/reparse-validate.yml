@@ -108,6 +108,7 @@ jobs:
         # reference_hashes.json (or vice versa)" failure mode. Pure-Python AST
         # parse, no indexer venv needed.
         run: |
+          python3 -m unittest discover -s indexer/ci -p test_validate_checkpoints_vs_reference.py
           python3 indexer/ci/validate_checkpoints_vs_reference.py
 
       - name: Validate block bytes against baseline
