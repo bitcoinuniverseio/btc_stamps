@@ -223,7 +223,9 @@ class BlockProcessor:
                     with self._lock:
                         self.parsed_stamps.append(stamp_data)
                         # These explicit stamp numbers describe mainnet history.
-                        legacy_collections = [] if config.TESTNET or config.REGTEST or config.SIGNET else config.LEGACY_COLLECTIONS
+                        legacy_collections = (
+                            [] if config.TESTNET or config.REGTEST or config.SIGNET else config.LEGACY_COLLECTIONS
+                        )
                         self.collection_operations.append((stamp_data, legacy_collections))
                     logger.debug(f"Added stamp data for tx: {result.tx_hash}")
                     if result.tx_hash == "95dca4dc27e50e7b26174a0ded7af3b26527def625670d058ae09200eeb3d735":

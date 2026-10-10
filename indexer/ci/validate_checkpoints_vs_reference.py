@@ -39,7 +39,24 @@ def parse_config_constants(config_py_path: Path) -> dict[str, int]:
     evaluate the dict.
     """
     constants: dict[str, int] = {}
+    mainnet_heights: dict[str, int] = {}
+    profile_path = config_py_path.with_name("network_profile.py")
+    if profile_path.is_file():
+        for declaration in ast.parse(profile_path.read_text()).body:
+            if (
+                isinstance(declaration, ast.AnnAssign)
+                and isinstance(declaration.target, ast.Name)
+                and declaration.target.id == "MAINNET_ACTIVATION_HEIGHTS"
+                and declaration.value is not None
+            ):
+                literal = ast.literal_eval(declaration.value)
+                if not isinstance(literal, dict) or not all(
+                    isinstance(key, str) and type(height) is int for key, height in literal.items()
+                ):
+                    raise RuntimeError("MAINNET_ACTIVATION_HEIGHTS must be a literal integer mapping")
+                mainnet_heights = literal
     tree = ast.parse(config_py_path.read_text())
+    mainnet_profile_heights = False
     for node in tree.body:
         targets: list[ast.expr] = []
         value: ast.expr | None = None
@@ -51,10 +68,31 @@ def parse_config_constants(config_py_path: Path) -> dict[str, int]:
             value = node.value
         if value is None:
             continue
+        if any(isinstance(tgt, ast.Name) and tgt.id == "_HEIGHTS" for tgt in targets):
+            mainnet_profile_heights = (
+                isinstance(value, ast.Attribute)
+                and isinstance(value.value, ast.Name)
+                and value.value.id == "NETWORK_PROFILE"
+                and value.attr == "activation_heights"
+            )
         if isinstance(value, ast.Constant) and isinstance(value.value, int):
             for tgt in targets:
                 if isinstance(tgt, ast.Name):
                     constants[tgt.id] = value.value
+        elif (
+            mainnet_profile_heights
+            and isinstance(value, ast.Subscript)
+            and isinstance(value.value, ast.Name)
+            and value.value.id == "_HEIGHTS"
+            and isinstance(value.slice, ast.Constant)
+            and isinstance(value.slice.value, str)
+        ):
+            key = value.slice.value
+            if key not in mainnet_heights:
+                raise RuntimeError(f"Mainnet activation height {key} not found in {profile_path}")
+            for tgt in targets:
+                if isinstance(tgt, ast.Name):
+                    constants[tgt.id] = mainnet_heights[key]
     return constants
 
 
@@ -69,7 +107,13 @@ def evaluate_node(node: ast.AST, config_constants: dict[str, int]) -> Any:
             raise RuntimeError(f"config.{node.attr} not found in config.py")
         raise RuntimeError(f"unsupported attribute: {ast.dump(node)}")
     if isinstance(node, ast.Dict):
-        return {evaluate_node(k, config_constants): evaluate_node(v, config_constants) for k, v in zip(node.keys, node.values)}
+        if any(key is None for key in node.keys):
+            raise RuntimeError("dictionary expansion is unsupported")
+        return {
+            evaluate_node(k, config_constants): evaluate_node(v, config_constants)
+            for k, v in zip(node.keys, node.values)
+            if k is not None
+        }
     if isinstance(node, ast.List):
         return [evaluate_node(e, config_constants) for e in node.elts]
     if isinstance(node, ast.Tuple):
@@ -165,9 +209,9 @@ def main() -> int:
 
     if mismatched:
         print(f"::error::{len(mismatched)} hash mismatches between CHECKPOINTS_MAINNET and reference_hashes.json")
-        for block, field, expected, actual in mismatched[:20]:
+        for block, field, expected_hash, actual in mismatched[:20]:
             print(f"  block {block} {field}:")
-            print(f"    CHECKPOINTS_MAINNET: {expected}")
+            print(f"    CHECKPOINTS_MAINNET: {expected_hash}")
             print(f"    reference_hashes:    {actual}")
         if len(mismatched) > 20:
             print(f"  ... and {len(mismatched) - 20} more")

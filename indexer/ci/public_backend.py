@@ -143,7 +143,15 @@ class PublicNodeBackend:
     """
 
     def __init__(self, base: str = BLOCKSTREAM_BASE) -> None:
+        try:
+            from curated_block_cache import configured_cache
+        except ModuleNotFoundError as error:
+            if error.name != "curated_block_cache":
+                raise
+            from ci.curated_block_cache import configured_cache
+
         self.base = base.rstrip("/")
+        self.cache = configured_cache()
         # The production filter path calls `backend_instance._parser` to decide
         # between the Rust batch path and the Python single-tx fallback. Set to
         # None to take the fallback — slower but doesn't require the Rust
@@ -155,6 +163,8 @@ class PublicNodeBackend:
     # ------------------------------------------------------------------
 
     def getblockhash(self, block_index: int) -> str:
+        if self.cache and int(block_index) in self.cache.hashes:
+            return self.cache.block_hash(int(block_index))
         if _RPC_URL:
             return _rpc("getblockhash", [int(block_index)])
         body = _http_get(f"{self.base}/block-height/{int(block_index)}")
@@ -164,7 +174,9 @@ class PublicNodeBackend:
         if verbosity != 2:
             raise NotImplementedError(f"PublicNodeBackend only supports verbosity=2 (got {verbosity})")
 
-        if _RPC_URL:
+        if self.cache and block_hash in self.cache.records:
+            raw = self.cache.block_bytes(block_hash)
+        elif _RPC_URL:
             raw = bytes.fromhex(_rpc("getblock", [block_hash, 0]))
         else:
             raw = _http_get(f"{self.base}/block/{block_hash}/raw")

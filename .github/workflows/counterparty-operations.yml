@@ -1,0 +1,103 @@
+name: Counterparty recovery operations
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retained-work:
+    name: Counterparty retained work controls
+    if: ${{ github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: [self-hosted, universe-runners-1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Acquire the immutable release image
+        timeout-minutes: 20
+        run: docker pull counterparty/counterparty@sha256:3a075dadc0e9b45e979b18652559fa050b8cba2d2f5421673e3f8f6b7f4e7c09
+      - name: Fetch exact upstream source for method integration controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir="$RUNNER_TEMP/counterparty-v114-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$source_dir"
+          git init "$source_dir"
+          git -C "$source_dir" remote add upstream https://github.com/CounterpartyXCP/counterparty-core.git
+          git -C "$source_dir" -c core.autocrlf=false fetch --depth 1 upstream e4d1315654b79bb7207cd9f45a8d7b6d5255a290
+          git -C "$source_dir" -c core.autocrlf=false checkout --detach FETCH_HEAD
+          test "$(git -C "$source_dir" rev-parse HEAD)" = e4d1315654b79bb7207cd9f45a8d7b6d5255a290
+          echo "COUNTERPARTY_PINNED_SOURCE=$source_dir" >> "$GITHUB_ENV"
+      - name: Preserve accepted responses and retained transactions
+        run: python -m unittest discover -s operations/counterparty -p 'test_*.py' -v
+      - name: Check patch provenance and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/counterparty-drain-patch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          python operations/counterparty/prepare_source_patch.py --source "$COUNTERPARTY_PINNED_SOURCE" --output "$output"
+          git -C "$COUNTERPARTY_PINNED_SOURCE" apply --check "$output/counterparty-no-force.patch"
+          git diff --check
+          echo "COUNTERPARTY_DRAIN_PATCH=$output" >> "$GITHUB_ENV"
+      - name: Prepare and start the isolated native controls
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          controls="$RUNNER_WORKSPACE/counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir "$controls"
+          cp operations/counterparty/graceful_drain.py "$controls/"
+          cp operations/counterparty/native_waitress_transport.py "$controls/"
+          source_api="$COUNTERPARTY_DRAIN_PATCH/counterparty-core/counterpartycore/lib/api"
+          cp "$source_api/wsgi.py" "$controls/derived_wsgi.py"
+          cp "$source_api/apiwatcher.py" "$controls/derived_apiwatcher.py"
+          cp "$source_api/apiv1.py" "$controls/derived_apiv1.py"
+          chmod 555 "$controls"
+          chmod 444 "$controls"/*.py
+          image=counterparty/counterparty@sha256:3a075dadc0e9b45e979b18652559fa050b8cba2d2f5421673e3f8f6b7f4e7c09
+          container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker create --pull=never --name "$container" --network none --read-only \
+            --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 \
+            --memory 512m --memory-swap 512m --cpus .25 --pids-limit 64 --stop-timeout -1 \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=0700 \
+            --mount "type=bind,src=$controls,dst=/controls,readonly" \
+            --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 \
+            --entrypoint /venv/bin/python "$image" /controls/native_waitress_transport.py
+          docker start "$container"
+      - name: Real release-image HTTP and watcher cleanup
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -euo pipefail
+          container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test "$(docker wait "$container")" = '0'
+          docker logs "$container" 2>&1 | tee "$RUNNER_TEMP/counterparty-native-output-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.log"
+          test "$(docker inspect --format '{{.State.Pid}} {{.State.ExitCode}} {{.State.OOMKilled}}' "$container")" = '0 0 false'
+          docker inspect --format '{{json .State}}' "$container" > "$RUNNER_TEMP/counterparty-native-state.json"
+          python - "$RUNNER_TEMP/counterparty-native-state.json" <<'PY'
+          import datetime, json, pathlib, sys
+          state = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          started = datetime.datetime.fromisoformat(state['StartedAt'].replace('Z', '+00:00'))
+          ended = datetime.datetime.fromisoformat(state['FinishedAt'].replace('Z', '+00:00'))
+          elapsed = (ended - started).total_seconds()
+          assert 0 < elapsed <= 120, 'Actual native runtime exceeded the unchanged two-minute bound'
+          print(json.dumps({'nativeElapsedSeconds': elapsed, 'exitCode': state['ExitCode'], 'oomKilled': state['OOMKilled']}))
+          PY
+          if grep -E 'Exception when servicing|Exception while serving|SQLITE_WARNING|Traceback' \
+            "$RUNNER_TEMP/counterparty-native-output-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.log"; then
+            echo '::error::Native cleanup reported an error despite test completion'
+            exit 1
+          fi
+      - name: Preserve native container lifecycle observations
+        if: always()
+        shell: bash
+        run: |
+          container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if docker inspect "$container" >/dev/null 2>&1; then
+            docker inspect --format 'PID={{.State.Pid}} status={{.State.Status}} exit={{.State.ExitCode}} OOM={{.State.OOMKilled}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' "$container"
+          fi
