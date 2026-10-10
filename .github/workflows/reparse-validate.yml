@@ -81,8 +81,6 @@ jobs:
     # red so this gate can be made required. The deliberate scope exclusions
     # (TIER3_CROSS_BLOCK_LEDGER) remain SKIPS inside ci_reparse_subprocess.py
     # (dropped from the block list), not failures, so they never turn the gate red.
-    env:
-      CI_CURATED_BLOCK_CACHE: ${{ runner.temp }}/counterparty-curated-cache-${{ github.run_id }}-${{ strategy.job-index }}
     strategy:
       fail-fast: false
       # All versions share the same public upstream when private RPC is unset.
@@ -118,6 +116,7 @@ jobs:
       - name: Fetch verified curated Bitcoin block inputs
         env:
           GH_TOKEN: ${{ github.token }}
+          CI_CURATED_BLOCK_CACHE: ${{ runner.temp }}/counterparty-curated-cache-${{ github.run_id }}-${{ strategy.job-index }}
         run: |
           python3 indexer/ci/fetch_curated_block_cache.py \
             --asset-id 628295444 \
@@ -175,6 +174,7 @@ jobs:
           # blockstream.info public node (content-addressed, so trust is
           # bounded by hash verification — the workflow rejects any block
           # whose bytes don't hash to the expected block_hash).
+          CI_CURATED_BLOCK_CACHE: ${{ runner.temp }}/counterparty-curated-cache-${{ github.run_id }}-${{ strategy.job-index }}
           BITCOIN_RPC_URL: ${{ secrets.BITCOIN_RPC_URL }}
           BITCOIN_RPC_USER: ${{ secrets.BITCOIN_RPC_USER }}
           BITCOIN_RPC_PASSWORD: ${{ secrets.BITCOIN_RPC_PASSWORD }}
@@ -186,6 +186,7 @@ jobs:
         working-directory: ./indexer
         env:
           # Use the same configured, hash-verified block source as Tier 1.
+          CI_CURATED_BLOCK_CACHE: ${{ runner.temp }}/counterparty-curated-cache-${{ github.run_id }}-${{ strategy.job-index }}
           CI_BITCOIN_RPC_URL: ${{ secrets.BITCOIN_RPC_URL }}
           CI_BITCOIN_RPC_USER: ${{ secrets.BITCOIN_RPC_USER }}
           CI_BITCOIN_RPC_PASSWORD: ${{ secrets.BITCOIN_RPC_PASSWORD }}
