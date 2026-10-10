@@ -1,4 +1,4 @@
-"""Prepare an exact, reviewable v11.4.0 patch without editing its checkout."""
+"""Prepare an exact, reviewable v11.5.0 patch without editing its checkout."""
 
 import argparse
 import difflib
@@ -7,7 +7,7 @@ import json
 import pathlib
 import subprocess
 
-SOURCE_COMMIT = "e4d1315654b79bb7207cd9f45a8d7b6d5255a290"
+SOURCE_COMMIT = "8aab989157019e62423cd959b8571c7daf748d56"
 PREFIX = "counterparty-core/counterpartycore/lib/"
 
 
