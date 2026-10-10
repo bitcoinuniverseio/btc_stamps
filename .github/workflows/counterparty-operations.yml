@@ -1,0 +1,42 @@
+name: Counterparty recovery operations
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  retained-work:
+    name: Counterparty retained work controls
+    if: ${{ github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    runs-on: [self-hosted, universe-runners-1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Fetch exact upstream source for method integration controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_dir="$RUNNER_TEMP/counterparty-v114-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          test ! -e "$source_dir"
+          git init "$source_dir"
+          git -C "$source_dir" remote add upstream https://github.com/CounterpartyXCP/counterparty-core.git
+          git -C "$source_dir" -c core.autocrlf=false fetch --depth 1 upstream e4d1315654b79bb7207cd9f45a8d7b6d5255a290
+          git -C "$source_dir" -c core.autocrlf=false checkout --detach FETCH_HEAD
+          test "$(git -C "$source_dir" rev-parse HEAD)" = e4d1315654b79bb7207cd9f45a8d7b6d5255a290
+          echo "COUNTERPARTY_PINNED_SOURCE=$source_dir" >> "$GITHUB_ENV"
+      - name: Preserve accepted responses and retained transactions
+        run: python -m unittest discover -s operations/counterparty -p 'test_*.py' -v
+      - name: Check patch provenance and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/counterparty-drain-patch-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          python operations/counterparty/prepare_source_patch.py --source "$COUNTERPARTY_PINNED_SOURCE" --output "$output"
+          git -C "$COUNTERPARTY_PINNED_SOURCE" apply --check "$output/counterparty-no-force.patch"
+          git diff --check
