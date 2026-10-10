@@ -20,18 +20,18 @@ jobs:
           python-version: '3.11'
       - name: Acquire the immutable release image
         timeout-minutes: 20
-        run: docker pull counterparty/counterparty@sha256:3a075dadc0e9b45e979b18652559fa050b8cba2d2f5421673e3f8f6b7f4e7c09
+        run: docker pull counterparty/counterparty@sha256:12f1c38aa01bee7526c3afcdcc5c2c5000cb26b65ab8d324786000b233af5c91
       - name: Fetch exact upstream source for method integration controls
         shell: bash
         run: |
           set -euo pipefail
-          source_dir="$RUNNER_TEMP/counterparty-v114-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          source_dir="$RUNNER_TEMP/counterparty-v115-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           test ! -e "$source_dir"
           git init "$source_dir"
           git -C "$source_dir" remote add upstream https://github.com/CounterpartyXCP/counterparty-core.git
-          git -C "$source_dir" -c core.autocrlf=false fetch --depth 1 upstream e4d1315654b79bb7207cd9f45a8d7b6d5255a290
+          git -C "$source_dir" -c core.autocrlf=false fetch --depth 1 upstream 8aab989157019e62423cd959b8571c7daf748d56
           git -C "$source_dir" -c core.autocrlf=false checkout --detach FETCH_HEAD
-          test "$(git -C "$source_dir" rev-parse HEAD)" = e4d1315654b79bb7207cd9f45a8d7b6d5255a290
+          test "$(git -C "$source_dir" rev-parse HEAD)" = 8aab989157019e62423cd959b8571c7daf748d56
           echo "COUNTERPARTY_PINNED_SOURCE=$source_dir" >> "$GITHUB_ENV"
       - name: Preserve accepted responses and retained transactions
         run: python -m unittest discover -s operations/counterparty -p 'test_*.py' -v
@@ -59,7 +59,7 @@ jobs:
           cp "$source_api/apiv1.py" "$controls/derived_apiv1.py"
           chmod 555 "$controls"
           chmod 444 "$controls"/*.py
-          image=counterparty/counterparty@sha256:3a075dadc0e9b45e979b18652559fa050b8cba2d2f5421673e3f8f6b7f4e7c09
+          image=counterparty/counterparty@sha256:12f1c38aa01bee7526c3afcdcc5c2c5000cb26b65ab8d324786000b233af5c91
           container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           docker create --pull=never --name "$container" --network none --read-only \
             --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 \
