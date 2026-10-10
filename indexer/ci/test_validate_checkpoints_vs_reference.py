@@ -10,8 +10,7 @@ class MainnetProfileCheckpoints(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "network_profile.py").write_text(
-                'raise RuntimeError("must not execute")\n'
-                'MAINNET_ACTIVATION_HEIGHTS: dict[str, int] = {"GENESIS": 779652}\n'
+                'raise RuntimeError("must not execute")\n' 'MAINNET_ACTIVATION_HEIGHTS: dict[str, int] = {"GENESIS": 779652}\n'
             )
             (root / "config.py").write_text(
                 'raise RuntimeError("must not execute")\n'
@@ -29,9 +28,7 @@ class MainnetProfileCheckpoints(unittest.TestCase):
     def test_missing_profile_height_refuses_instead_of_using_mainnet_literal(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "config.py").write_text(
-                '_HEIGHTS = NETWORK_PROFILE.activation_heights\nGENESIS = _HEIGHTS["GENESIS"]\n'
-            )
+            (root / "config.py").write_text('_HEIGHTS = NETWORK_PROFILE.activation_heights\nGENESIS = _HEIGHTS["GENESIS"]\n')
             (root / "check.py").write_text("CHECKPOINTS_MAINNET = {config.GENESIS: {}}\n")
             with self.assertRaisesRegex(RuntimeError, "activation height GENESIS not found"):
                 parse_checkpoints(root / "check.py", root / "config.py")

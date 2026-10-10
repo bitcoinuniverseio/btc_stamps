@@ -1,4 +1,5 @@
 """Owner row regressions; run with the repository test environment."""
+
 from copy import deepcopy
 from unittest.mock import patch
 
@@ -10,9 +11,13 @@ from index_core.src101 import Src101Validator, update_src101_owners
 @pytest.fixture
 def transfer():
     row = {
-        "p": "SRC-101", "op": "TRANSFER", "valid": 1,
-        "deploy_hash": "a" * 64, "tokenid": "YWxpY2U=",
-        "src101_owner": "new-owner", "src101_preowner": "prior-owner",
+        "p": "SRC-101",
+        "op": "TRANSFER",
+        "valid": 1,
+        "deploy_hash": "a" * 64,
+        "tokenid": "YWxpY2U=",
+        "src101_owner": "new-owner",
+        "src101_preowner": "prior-owner",
         "expire_timestamp": 2_000_000_000,
     }
     validator = Src101Validator(row)
@@ -32,7 +37,7 @@ def apply(rows):
 
 
 def test_scalar_transfer_preserves_entire_identity(transfer):
-    row, = apply([transfer])
+    (row,) = apply([transfer])
     assert (row["tokenid"], row["tokenid_utf8"]) == ("YWxpY2U=", "alice")
     assert row["owner"] == "new-owner"
     assert row["preowner"] == "prior-owner"
@@ -57,9 +62,17 @@ def test_renew_after_transfer_keeps_expiry_scalar(transfer):
 
 
 def test_mint_then_transfer_retains_image_and_clears_records(transfer):
-    mint = dict(transfer, op="MINT", tokenid=["YWxpY2U="], tokenid_utf8=["alice"],
-                src101_owner="prior-owner", src101_preowner=[None],
-                txt_data={"old": "record"}, prim=True, img=["https://example.invalid/alice.png"])
+    mint = dict(
+        transfer,
+        op="MINT",
+        tokenid=["YWxpY2U="],
+        tokenid_utf8=["alice"],
+        src101_owner="prior-owner",
+        src101_preowner=[None],
+        txt_data={"old": "record"},
+        prim=True,
+        img=["https://example.invalid/alice.png"],
+    )
     rows = apply([mint, transfer])
     row = rows[-1]
     assert row["owner"] == "new-owner"
@@ -70,16 +83,16 @@ def test_mint_then_transfer_retains_image_and_clears_records(transfer):
 
 
 def test_record_then_transfer_resets_primary_and_records(transfer):
-    record = dict(transfer, op="SETRECORD", txt_data={"old": "record"},
-                  address_btc="old-address", address_eth="old-eth", prim=True)
+    record = dict(
+        transfer, op="SETRECORD", txt_data={"old": "record"}, address_btc="old-address", address_eth="old-eth", prim=True
+    )
     row = apply([record, transfer])[-1]
     assert row["prim"] is False
     assert all(row[key] is None for key in ("address_btc", "address_eth", "txt_data"))
 
 
 def test_transfer_then_record_updates_primary(transfer):
-    record = dict(transfer, op="SETRECORD", txt_data={"new": "record"},
-                  address_btc="new-address", address_eth=None, prim=True)
+    record = dict(transfer, op="SETRECORD", txt_data={"new": "record"}, address_btc="new-address", address_eth=None, prim=True)
     row = apply([transfer, record])[-1]
     assert row["prim"] is True
     assert row["address_btc"] == "new-address"

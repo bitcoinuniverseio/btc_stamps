@@ -195,14 +195,10 @@ def main() -> int:
             continue
         # txlist_hash always required
         if expected.get("txlist_hash") and expected["txlist_hash"] != ref.get("txlist_hash"):
-            mismatched.append(
-                (block_index, "txlist_hash", expected["txlist_hash"], ref.get("txlist_hash", "<missing>"))
-            )
+            mismatched.append((block_index, "txlist_hash", expected["txlist_hash"], ref.get("txlist_hash", "<missing>")))
         # ledger_hash only checked when CHECKPOINTS_MAINNET carries a value
         if expected.get("ledger_hash") and expected["ledger_hash"] != ref.get("ledger_hash"):
-            mismatched.append(
-                (block_index, "ledger_hash", expected["ledger_hash"], ref.get("ledger_hash", "<missing>"))
-            )
+            mismatched.append((block_index, "ledger_hash", expected["ledger_hash"], ref.get("ledger_hash", "<missing>")))
 
     if missing:
         print(f"::error::{len(missing)} CHECKPOINTS_MAINNET blocks missing from reference_hashes.json")

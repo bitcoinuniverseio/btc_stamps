@@ -828,9 +828,7 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
             # Older writers omitted all three record columns. Rebuilding from
             # that incomplete history would silently erase current records.
             if address_btc is None and address_eth is None and txt_data is None:
-                raise ValueError(
-                    "SRC-101 SETRECORD history is incomplete; reparse the actual chain before rebuilding owners"
-                )
+                raise ValueError("SRC-101 SETRECORD history is incomplete; reparse the actual chain before rebuilding owners")
             id = canonical_by_name.get((deploy_hash, tokenid_utf8))
             if id in all_owners:
                 forget_primary(id)
@@ -845,7 +843,9 @@ def calculate_owners(db, src101_valid_list: List[Tuple[Any, ...]]) -> Dict[str, 
         elif op == "RENEW":
             id = canonical_by_name.get((deploy_hash, tokenid_utf8))
             if id in all_owners:
-                all_owners[id]["expire_timestamp"] = max(all_owners[id]["expire_timestamp"], int(block_time.timestamp())) + 31536000 * dua
+                all_owners[id]["expire_timestamp"] = (
+                    max(all_owners[id]["expire_timestamp"], int(block_time.timestamp())) + 31536000 * dua
+                )
                 all_owners[id]["last_update"] = block_index
             else:
                 logger.warning("Unexpected situations, there is no mint but can be transferred transactions")
@@ -933,8 +933,19 @@ def owners_need_update(existing_owners, all_owners):
                 return True
 
             owner_tuple = (
-                owner[3], owner[4], owner[8], owner[14] or 0,
-                owner[7], owner[13], bool(owner[9]), owner[10], owner[11], canonical_txt(owner[12]), owner[6], owner[0], owner[1],
+                owner[3],
+                owner[4],
+                owner[8],
+                owner[14] or 0,
+                owner[7],
+                owner[13],
+                bool(owner[9]),
+                owner[10],
+                owner[11],
+                canonical_txt(owner[12]),
+                owner[6],
+                owner[0],
+                owner[1],
             )
             existing_set.add(owner_tuple)
 
@@ -942,9 +953,19 @@ def owners_need_update(existing_owners, all_owners):
         logger.info(f"Processing {len(all_owners)} calculated owners")
         for key, value in all_owners.items():
             owner_tuple = (
-                value["deploy_hash"], value["tokenid"], value["owner"], value.get("last_update", 0),
-                value.get("preowner"), value.get("expire_timestamp"), bool(value.get("prim")),
-                value.get("address_btc"), value.get("address_eth"), canonical_txt(value.get("txt_data")), value.get("img"), value.get("index"), value.get("id"),
+                value["deploy_hash"],
+                value["tokenid"],
+                value["owner"],
+                value.get("last_update", 0),
+                value.get("preowner"),
+                value.get("expire_timestamp"),
+                bool(value.get("prim")),
+                value.get("address_btc"),
+                value.get("address_eth"),
+                canonical_txt(value.get("txt_data")),
+                value.get("img"),
+                value.get("index"),
+                value.get("id"),
             )
             new_set.add(owner_tuple)
 
@@ -2747,7 +2768,8 @@ def apply_schema_updates(db, cursor):
             "indexes": [("idx_src101valid_block_tx", ["block_index", "tx_hash"])],
         },
         "owners": {
-            "columns": [], "indexes": [],
+            "columns": [],
+            "indexes": [],
             "modifications": [("img", "VARCHAR(4096) COLLATE utf8mb4_bin NULL", "varchar(4096)")],
         },
         "transactions": {
