@@ -68,7 +68,6 @@ class AdmissionDrain:
                 [
                     ("Content-Type", "application/json"),
                     ("Content-Length", str(len(body))),
-                    ("Connection", "close"),
                     ("Retry-After", "1"),
                 ],
             )

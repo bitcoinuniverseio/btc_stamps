@@ -30,6 +30,14 @@ stop ordering, a retained watcher transaction and stopping before serving starts
 it also verifies that unrelated declarations remain intact. The operational CI
 job fetches the exact upstream commit and runs these controls on Linux.
 
+`native_waitress_transport.py` additionally exercises the derived Waitress class
+with its real HTTP socket and installed release dependencies. In the isolated
+release-image fixture, an accepted response finished after eleven seconds while
+new admission returned 503, then the server and dispatcher exited naturally.
+The first run exposed a forbidden WSGI Connection header; the corrected run
+passed. This fixture supplies `derived_wsgi.py` from the generated patch and
+does not run a chain backend or establish full provider acceptance.
+
 Keep canonical mounts out of qualification namespaces. Pin network, genesis,
 source image, protected cookie reference, sole producer and database epoch before
 any provider promotion. Keep listeners on loopback, preserve catch-up and reorg
