@@ -63,5 +63,11 @@ jobs:
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=0700 \
             --mount "type=bind,src=$controls,dst=/controls,readonly" \
             --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 \
-            --entrypoint /venv/bin/python "$image" /controls/native_waitress_transport.py
+            --entrypoint /venv/bin/python "$image" /controls/native_waitress_transport.py \
+            2>&1 | tee "$RUNNER_TEMP/counterparty-native-output-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.log"
           test "$(docker inspect --format '{{.State.Pid}} {{.State.ExitCode}} {{.State.OOMKilled}}' "$container")" = '0 0 false'
+          if grep -E 'Exception when servicing|Exception while serving|SQLITE_WARNING|Traceback' \
+            "$RUNNER_TEMP/counterparty-native-output-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.log"; then
+            echo '::error::Native cleanup reported an error despite test completion'
+            exit 1
+          fi
