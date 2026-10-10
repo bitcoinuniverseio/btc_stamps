@@ -527,7 +527,7 @@ class TestOwnershipCalculations:
                 "MINT",  # op
                 "token1",  # tokenid
                 "token1_utf8",  # tokenid_utf8
-                "img1.png",  # img
+                '["img1.png"]',  # img (MINT image history is a JSON array per token)
                 "deploy_hash1",  # deploy_hash
                 "creator1",  # creator
                 1,  # dua (duration)
@@ -544,7 +544,7 @@ class TestOwnershipCalculations:
 
         result = database.calculate_owners(mock_db, src101_data)
 
-        expected_id = "SRC-101_deploy_hash1token1"
+        expected_id = "SRC-101_deploy_hash1_token1"
         assert expected_id in result
         assert result[expected_id]["owner"] == "owner1"
         assert result[expected_id]["deploy_hash"] == "deploy_hash1"

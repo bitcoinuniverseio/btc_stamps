@@ -32,8 +32,12 @@ def test_empty_source_cannot_attest(tmp_path):
 
 
 def test_actual_selected_network_and_start_rule_overrides_are_attested(tmp_path,monkeypatch):
-    import bitcoin
-    import config
+    # Patch the modules the attestation actually reads. Other tests evict and
+    # re-import ``config``, so a fresh ``import config`` here can be a different
+    # object from the one index_core.source_attestation captured at import.
+    from index_core import source_attestation
+    bitcoin = source_attestation.bitcoin
+    config = source_attestation.config
     (tmp_path/'parser.py').write_text('pass\n')
     original=bitcoin.params.NAME
     try:
