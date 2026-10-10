@@ -12,12 +12,15 @@ jobs:
     name: Counterparty retained work controls
     if: ${{ github.repository == 'bitcoinuniverseio/btc_stamps' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: [self-hosted, universe-runners-1]
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
+      - name: Acquire the immutable release image
+        timeout-minutes: 20
+        run: docker pull counterparty/counterparty@sha256:3a075dadc0e9b45e979b18652559fa050b8cba2d2f5421673e3f8f6b7f4e7c09
       - name: Fetch exact upstream source for method integration controls
         shell: bash
         run: |
@@ -42,6 +45,7 @@ jobs:
           git diff --check
           echo "COUNTERPARTY_DRAIN_PATCH=$output" >> "$GITHUB_ENV"
       - name: Real release-image HTTP and watcher cleanup
+        timeout-minutes: 2
         shell: bash
         run: |
           set -euo pipefail
@@ -57,7 +61,7 @@ jobs:
           chmod 444 "$controls"/*.py
           image=counterparty/counterparty@sha256:3a075dadc0e9b45e979b18652559fa050b8cba2d2f5421673e3f8f6b7f4e7c09
           container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker run --name "$container" --sig-proxy=false --network none --read-only \
+          docker run --pull=never --name "$container" --sig-proxy=false --network none --read-only \
             --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 \
             --memory 512m --memory-swap 512m --cpus .25 --pids-limit 64 --stop-timeout -1 \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=0700 \
