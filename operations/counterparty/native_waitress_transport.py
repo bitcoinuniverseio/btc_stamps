@@ -12,6 +12,75 @@ import unittest
 
 
 class NativeWaitressDrain(unittest.TestCase):
+    def test_actual_legacy_rpc_server_retains_response_and_stops_before_start(self):
+        import flask
+
+        root = pathlib.Path(__file__).parent
+        spec = importlib.util.spec_from_file_location("derived_apiv1", root / "derived_apiv1.py")
+        rpc = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(rpc)
+        rpc.config.RPC_HOST, rpc.config.RPC_PORT = "127.0.0.1", 0
+        rpc.sentry.init = lambda: None
+        rpc.init_api_access_log = lambda _app: None
+        entered, release = threading.Event(), threading.Event()
+        application = flask.Flask("retained-rpc")
+
+        @application.route("/retained")
+        def retained():
+            entered.set()
+            release.wait()
+            time.sleep(11)
+            return "legacy-response-completed"
+
+        rpc.create_app = lambda: application
+        server = rpc.APIServer()
+        server.start()
+        deadline = time.monotonic() + 10
+        while not server.is_ready and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertTrue(server.is_ready)
+        port = server.server.server_port
+        received = []
+
+        def read():
+            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
+            try:
+                connection.request("GET", "/retained")
+                result = connection.getresponse()
+                received.append((result.status, result.read()))
+            finally:
+                connection.close()
+
+        request = threading.Thread(target=read)
+        request.start()
+        self.assertTrue(entered.wait(10))
+        began = time.monotonic()
+        stop = threading.Thread(target=server.stop)
+        stop.start()
+        deadline = time.monotonic() + 5
+        while not server.admission_drain._closing and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertTrue(server.admission_drain._closing)
+        rejected = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        rejected.request("GET", "/retained")
+        result = rejected.getresponse()
+        self.assertEqual(result.status, 503)
+        result.read()
+        rejected.close()
+        release.set()
+        request.join(30)
+        stop.join(30)
+        self.assertFalse(request.is_alive() or stop.is_alive() or server.is_alive())
+        self.assertGreaterEqual(time.monotonic() - began, 10.5)
+        self.assertEqual(received, [(200, b"legacy-response-completed")])
+        self.assertFalse(server.is_ready)
+        dormant = rpc.APIServer()
+        dormant.stop()
+        dormant.start()
+        dormant.join(10)
+        self.assertFalse(dormant.is_alive())
+        self.assertIsNone(dormant.server)
+
     def test_actual_watcher_closes_after_retained_savepoint_commits(self):
         import apsw
 
