@@ -40,3 +40,28 @@ jobs:
           python operations/counterparty/prepare_source_patch.py --source "$COUNTERPARTY_PINNED_SOURCE" --output "$output"
           git -C "$COUNTERPARTY_PINNED_SOURCE" apply --check "$output/counterparty-no-force.patch"
           git diff --check
+          echo "COUNTERPARTY_DRAIN_PATCH=$output" >> "$GITHUB_ENV"
+      - name: Real release-image HTTP and watcher cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          controls="$RUNNER_TEMP/counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir "$controls"
+          cp operations/counterparty/graceful_drain.py "$controls/"
+          cp operations/counterparty/native_waitress_transport.py "$controls/"
+          source_api="$COUNTERPARTY_DRAIN_PATCH/counterparty-core/counterpartycore/lib/api"
+          cp "$source_api/wsgi.py" "$controls/derived_wsgi.py"
+          cp "$source_api/apiwatcher.py" "$controls/derived_apiwatcher.py"
+          cp "$source_api/apiv1.py" "$controls/derived_apiv1.py"
+          chmod 555 "$controls"
+          chmod 444 "$controls"/*.py
+          image=counterparty/counterparty@sha256:3a075dadc0e9b45e979b18652559fa050b8cba2d2f5421673e3f8f6b7f4e7c09
+          container="counterparty-native-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker run --name "$container" --sig-proxy=false --network none --read-only \
+            --cap-drop ALL --security-opt no-new-privileges --user 1000:1000 \
+            --memory 512m --memory-swap 512m --cpus .25 --pids-limit 64 --stop-timeout -1 \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,uid=1000,gid=1000,mode=0700 \
+            --mount "type=bind,src=$controls,dst=/controls,readonly" \
+            --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1 \
+            --entrypoint /venv/bin/python "$image" /controls/native_waitress_transport.py
+          test "$(docker inspect --format '{{.State.Pid}} {{.State.ExitCode}} {{.State.OOMKilled}}' "$container")" = '0 0 false'
