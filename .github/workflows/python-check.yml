@@ -36,7 +36,12 @@ jobs:
           key: rust-${{ runner.os }}-${{ hashFiles('indexer/src/rust_parser/rust-toolchain.toml') }}-${{ hashFiles('indexer/src/rust_parser/Cargo.lock') }}
       - name: Install Poetry
         run: |
+          # Install into this job's temp dir: the runner home is shared by every
+          # runner on the host, so a shared Poetry venv can point at another job's Python.
+          export POETRY_HOME="$RUNNER_TEMP/poetry"
           curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
+          export PATH="$POETRY_HOME/bin:$PATH"
+          echo "$POETRY_HOME/bin" >> "$GITHUB_PATH"
           poetry config virtualenvs.in-project true
           poetry install
         working-directory: ./indexer
@@ -79,7 +84,12 @@ jobs:
           save-if: ${{ false }}
       - name: Install Poetry
         run: |
+          # Install into this job's temp dir: the runner home is shared by every
+          # runner on the host, so a shared Poetry venv can point at another job's Python.
+          export POETRY_HOME="$RUNNER_TEMP/poetry"
           curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
+          export PATH="$POETRY_HOME/bin:$PATH"
+          echo "$POETRY_HOME/bin" >> "$GITHUB_PATH"
           poetry config virtualenvs.in-project true
           poetry install
         working-directory: ./indexer
@@ -128,7 +138,12 @@ jobs:
           save-if: ${{ false }}
       - name: Install Poetry
         run: |
+          # Install into this job's temp dir: the runner home is shared by every
+          # runner on the host, so a shared Poetry venv can point at another job's Python.
+          export POETRY_HOME="$RUNNER_TEMP/poetry"
           curl -sSL https://install.python-poetry.org | python3 - --version 2.1.1
+          export PATH="$POETRY_HOME/bin:$PATH"
+          echo "$POETRY_HOME/bin" >> "$GITHUB_PATH"
           poetry config virtualenvs.in-project true
           poetry install
         working-directory: ./indexer
