@@ -1128,18 +1128,23 @@ def owner_updates_for_event(row):
     updates = []
     for index, token in enumerate(tokens):
         moved = op == "TRANSFER"
-        updates.append({
-            "p": row["p"], "deploy_hash": row["deploy_hash"], "tokenid": token,
-            "tokenid_utf8": names[index], "owner": row["src101_owner"],
-            "preowner": row["src101_preowner"][index] if op == "MINT" else row["src101_preowner"],
-            "expire_timestamp": row["expire_timestamp"],
-            "txt_data": None if moved else row.get("txt_data"),
-            "address_btc": row["src101_owner"] if op == "MINT" else None if moved else row.get("address_btc"),
-            "address_eth": None if op in ("MINT", "TRANSFER") else row.get("address_eth"),
-            "prim": False if moved else row.get("prim", False),
-            "img": row["img"][index] if op == "MINT" else None,
-            "replace_img": op == "MINT",
-        })
+        updates.append(
+            {
+                "p": row["p"],
+                "deploy_hash": row["deploy_hash"],
+                "tokenid": token,
+                "tokenid_utf8": names[index],
+                "owner": row["src101_owner"],
+                "preowner": row["src101_preowner"][index] if op == "MINT" else row["src101_preowner"],
+                "expire_timestamp": row["expire_timestamp"],
+                "txt_data": None if moved else row.get("txt_data"),
+                "address_btc": row["src101_owner"] if op == "MINT" else None if moved else row.get("address_btc"),
+                "address_eth": None if op in ("MINT", "TRANSFER") else row.get("address_eth"),
+                "prim": False if moved else row.get("prim", False),
+                "img": row["img"][index] if op == "MINT" else None,
+                "replace_img": op == "MINT",
+            }
+        )
     return updates
 
 
@@ -1291,9 +1296,15 @@ def get_owner_expire_data_from_running(db, processed_src101_in_block, deploy_has
             if update["prim"] and update["address_btc"] is not None and update["address_btc"] == state[3]:
                 state[6] = False
             if update["tokenid_utf8"] == tokenid_utf8:
-                state = [update["preowner"], update["owner"], update["expire_timestamp"],
-                         update["address_btc"], update["address_eth"],
-                         json.dumps(update["txt_data"]) if update["txt_data"] else None, update["prim"]]
+                state = [
+                    update["preowner"],
+                    update["owner"],
+                    update["expire_timestamp"],
+                    update["address_btc"],
+                    update["address_eth"],
+                    json.dumps(update["txt_data"]) if update["txt_data"] else None,
+                    update["prim"],
+                ]
     return state
 
 
