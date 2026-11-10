@@ -30,7 +30,7 @@ class TestEnableSalesHistoryCatchupFlag:
 
         Resolved at call time rather than via ``importlib.reload(config)``.
         The suite runs ``pytest -n auto`` and several other tests reload
-        ``config`` (see CLAUDE.md), so reloading here is both fragile and
+        ``config`` (see CONTRIBUTING.md), so reloading here is both fragile and
         unnecessary: it raises ``ImportError: module config not in
         sys.modules`` when another worker's test has evicted ``config``.
         ``importlib.import_module`` instead returns the live module without

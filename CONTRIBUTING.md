@@ -5,8 +5,8 @@ software — please read the consensus rule below before opening a PR.
 
 ## Getting started
 
-- Read [`CLAUDE.md`](CLAUDE.md) (the consensus model, gotchas) and
-  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) / [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+- Read [`docs/CONSENSUS.md`](docs/CONSENSUS.md),
+  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md), and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 - A Rust transaction parser (`indexer/src/rust_parser/`, PyO3 module `btc_stamps_parser`)
   feeds the Python ledger engine (`indexer/src/index_core/`). **All commands run from
   `indexer/`.**
@@ -57,6 +57,15 @@ must pass the Reparse Consensus gate first, get the `consensus` label, and are n
 merged mid-release (they change release scope). A pip bump that touches
 `indexer/poetry.lock` also needs `./indexer/ci/refresh-freeze.sh` re-run, or Freeze
 Drift CI fails.
+
+## Operational cautions
+
+Production databases and shared Bitcoin and Counterparty services require explicit
+operator authorization before changes. Do not start a full reindex without maintainer
+approval. For test backend substitution, use the injection seam described in
+[development documentation](docs/DEVELOPMENT.md); per-module reassignment can miss
+imports and reach a real Bitcoin node. Tests that reload configuration should resolve
+configuration values at call time to avoid stale module references.
 
 ## Pull requests
 

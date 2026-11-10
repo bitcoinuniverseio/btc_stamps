@@ -545,7 +545,7 @@ class TestSalesHistoryProcessor:
         # set). Patch the config object the processor dereferences at call time
         # via patch.object, not a string target: under ``pytest -n auto`` other
         # tests reload ``config`` and a string target can resolve a different
-        # module object than the one the processor reads (see CLAUDE.md).
+        # module object than the one the processor reads (see CONTRIBUTING.md).
         with patch.dict(os.environ, {"TESTING": "0"}), patch.object(config, "ENABLE_SALES_HISTORY_CATCHUP", True):
             # Start catchup with explicit FULL_CATCHUP mode
             processor.start_catchup_mode(mode="FULL_CATCHUP")
