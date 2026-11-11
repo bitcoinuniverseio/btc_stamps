@@ -80,6 +80,8 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}  # Optional but recommended
           
       - name: Upload HTML coverage report
+        # Report-only upload: keep the job green when the shared artifact storage quota is full.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         if: always()
         with:
